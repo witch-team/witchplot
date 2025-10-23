@@ -194,7 +194,8 @@ shinyServer(function(input, output, session) {
       models_selected <- input$models_selected
       scenarios_selected <- input$scenarios_selected
       #Variables
-      suppressWarnings(ggplot(iiasadb_snapshot %>% group_by(MODEL, SCENARIO) %>% filter(!str_detect(REGION, "\\|")) %>% summarize(VARIABLE=unique(VARIABLE)) %>% ungroup() %>% group_by(MODEL, VARIABLE) %>% summarize(SCENARIOS=length(SCENARIO)), aes(VARIABLE, MODEL, fill=SCENARIOS)) + geom_tile() + theme_minimal() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_text(aes(label=SCENARIOS))  + theme(text = element_text(size=16)) + scale_fill_gradient2(low = "white", mid = "yellow", high = "darkgreen") + scale_x_discrete(labels = function(x) str_wrap(x, width = 50)))
+      #suppressWarnings(ggplot(iiasadb_snapshot %>% group_by(MODEL, SCENARIO) %>% filter(!str_detect(REGION, "\\|")) %>% summarize(VARIABLE=unique(VARIABLE)) %>% ungroup() %>% group_by(MODEL, VARIABLE) %>% summarize(SCENARIOS=length(SCENARIO)), aes(VARIABLE, MODEL, fill=SCENARIOS)) + geom_tile() + theme_minimal() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_text(aes(label=SCENARIOS))  + theme(text = element_text(size=16)) + scale_fill_gradient2(low = "white", mid = "yellow", high = "darkgreen") + scale_x_discrete(labels = function(x) str_wrap(x, width = 50)))
+      ggplot(iiasadb_snapshot %>% group_by(MODEL, SCENARIO) %>% filter(!str_detect(REGION, "\\|")) %>% reframe(VARIABLE=unique(VARIABLE)) %>% group_by(MODEL, VARIABLE) %>% summarize(SCENARIOS=length(SCENARIO)), aes(VARIABLE, MODEL, fill=SCENARIOS)) + geom_tile() + theme_minimal() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_text(aes(label=SCENARIOS), size=3)  + theme(text = element_text(size=10)) + scale_fill_gradient2(low = "white", mid = "yellow", high = "darkgreen") + scale_x_discrete(labels = function(x) str_wrap(x, width = 50)) + coord_flip()
     })
       
 

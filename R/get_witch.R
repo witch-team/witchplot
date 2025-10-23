@@ -17,13 +17,16 @@ get_witch <- function(variable_name,
            is.element(variable_name, all_items(mygdx)$parameters) | 
            is.element(variable_name, all_items(mygdx)$sets) | 
            is.element(variable_name, all_items(mygdx)$variables) | 
-           is.element(variable_name, all_items(mygdx)$equations))
-        {
+           is.element(variable_name, all_items(mygdx)$equations)){
           tempdata <- data.table(mygdx[variable_name, field = field])
           if(is.element(variable_name, all_items(mygdx)$equations)) names(tempdata)[1:2] <- c("t", "n")
-          if(variable_name %in% c("E", "EIND", "MIU", "ABATEDEMI", "ABATECOST") & !("ghg" %in% names(tempdata))) tempdata$ghg <- "co2" #just for RICE as definition had changed in 2.5.0
+          if(variable_name %in% c("E", "EIND", "MIU", "ABATEDEMI", "ABATECOST") & !("ghg" %in% names(tempdata))) tempdata$ghg <- "co2"
           if(!("n" %in% names(tempdata))) tempdata$n <- "World"
           tempdata$file <- as.character(file)
+          #add time step
+          if("t" %in% names(tempdata)){ 
+            if(flexible_timestep) if("tlen" %in% all_items(mygdx)$parameters) tempdata <- tempdata %>% left_join(mygdx["tlen"] %>% rename(tlen=value)) else tempdata$tlen = tstep
+          }
           if(length(fullpathdir)>=1){
             tempdata$pathdir <- basename(current_pathdir)
           }

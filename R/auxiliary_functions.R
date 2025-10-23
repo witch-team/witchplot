@@ -1,7 +1,28 @@
 #Auxiliary Functions
 
-ttoyear <- function(t){year=((as.numeric(t)-1) * tstep + year0); return(year);}
-yeartot <- function(year){t=((as.numeric(as.character(year)) - year0) / tstep) + 1; return(t);}
+ttoyear <- function(t, tlen = NULL){
+  if(is.null(tlen)) {
+    if(exists("tlen", envir = parent.frame())) {
+      tlen <- get("tlen", envir = parent.frame())
+    } else {
+      tlen <- tstep
+    }
+  }
+  year = ((as.numeric(t)-1) * tlen + year0)
+  return(year)
+}
+
+yeartot <- function(year, tlen = NULL){
+  if(is.null(tlen)) {
+    if(exists("tlen", envir = parent.frame())) {
+      tlen <- get("tlen", envir = parent.frame())
+    } else {
+      tlen <- tstep
+    }
+  }
+  t = ((as.numeric(as.character(year)) - year0) / tlen) + 1
+  return(t)
+}
 
 
 convert_pdftopng <- F #converts all created pdfs to png for better quality (needs pdftopng.exe in your PATH. Download from http://www.xpdfreader.com/download.html)

@@ -96,6 +96,9 @@ print(data.frame(scenlist=scenlist))
 #file to separate check
 if(exists("file_separate")) file_group_columns <- c("file", unname(file_separate[3:length(file_separate)])) else file_group_columns <- "file"
 
+#check if multiple time steps
+if(length(unique(suppressWarnings(batch_extract("tlen", files = file.path(fullpathdir,paste0(filelist,".gdx"))))$tlen$value)) > 1) flexible_timestep <- T else flexible_timestep <- F #allow for flexible time step
+
 #in case some runs are stochastic, set flag and provide mapping
 tset <- get_witch("t")
 if("t" %in% names(tset)){
