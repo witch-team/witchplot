@@ -326,4 +326,4 @@ Copyright (c) 2025 Johannes Emmerling and WITCH Team
 
   
 
-MIT License
+Apache License
