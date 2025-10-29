@@ -28,7 +28,29 @@ for(i in 1:length(plot_check_macc$n)){
 ggplot(miudf %>% pivot_longer(cols = !xx, names_to = "n"), aes(xx,value)) + geom_line(aes(colour = n))
 plotly::ggplotly()
 #add enerdata points
-enerdata <- fread(file = file.path(witch_folder, "input", "data", "enerdata-enerdata_macc_full.csv"))
+if(is.null(model_dir)){
+  warning("Cannot plot RICE MACC curves: model_dir is not available. Enerdata CSV file not found.")
+  return(invisible(NULL))
+}
+
+enerdata_file <- file.path(model_dir, "input", "data", "enerdata-enerdata_macc_full.csv")
+
+if(!file.exists(enerdata_file)){
+  warning(sprintf("Cannot plot RICE MACC curves: Enerdata file not found: '%s'\nPlease ensure model_dir contains input/data/enerdata-enerdata_macc_full.csv", enerdata_file))
+  return(invisible(NULL))
+}
+
+enerdata <- tryCatch(
+  fread(file = enerdata_file),
+  error = function(e) {
+    warning(sprintf("Cannot read enerdata file '%s': %s", enerdata_file, e$message))
+    return(NULL)
+  }
+)
+
+if(is.null(enerdata)){
+  return(invisible(NULL))
+}
 enerdata <- enerdata %>% filter(sector=="Total_CO2" & scenario=="Ener-Blue") %>% mutate(t=yeartot(Year), mju=abatement_perc, n=Code) %>% select(t,n,cost,mju)
 ggplot(enerdata %>% filter(ttoyear(t)==yearcheck), aes(mju,cost)) + geom_point(aes(colour = n))
 

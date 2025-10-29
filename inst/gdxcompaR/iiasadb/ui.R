@@ -8,7 +8,7 @@ if(!exists("iiasadb_snapshot")){
   require_package <- function(package){
     suppressPackageStartupMessages(require(package,character.only=T, quietly = TRUE))  
   }
-  pkgs <- c('data.table', 'stringr', 'countrycode', 'ggplot2', 'ggpubr', 'scales', 'RColorBrewer', 'dplyr', 'openxlsx', 'gsubfn', 'tidyr', 'rlang', 'shiny', 'shinythemes', 'shinyWidgets', 'plotly', 'purrr', 'reldist', 'tidytidbits', 'forcats', 'arrow')
+  pkgs <- c('data.table', 'stringr', 'countrycode', 'ggplot2', 'ggpubr', 'scales', 'RColorBrewer', 'dplyr', 'openxlsx', 'gsubfn', 'tidyr', 'rlang', 'shiny', 'shinythemes', 'shinyWidgets', 'plotly', 'purrr', 'reldist', 'tidytidbits', 'forcats', 'arrow', 'DT')
   res <- lapply(pkgs, require_package)
   deploy_online <<- T
 } 
@@ -49,11 +49,11 @@ shinyUI(fluidPage(
   mainPanel(
   tabsetPanel(type = "tabs", id = "tabs",
                 tabPanel("iiasadb_compaR", id = "iiasadb_compaR", h2(textOutput("varname")),plotOutput("iiasadb_compaR", width = "100%", height = "80vh")),
-                tabPanel("iiasadb_compaRly", id = "iiasadb_compaRly", plotlyOutput("iiasadb_compaRly", width = "100%", height = "80vh")),
-                
-                tabPanel("Regions", id = "Regions", h2("Regions"),plotOutput("iiasadb_coverage_regions", width = "100%", height = "80vh")),
-                tabPanel("Scenarios", id = "Scenarios", h2("Scenarios"),plotOutput("iiasadb_coverage_scenarios", width = "100%", height = "80vh")),
-                tabPanel("Variables", id = "Variables", h2("Variables"),plotOutput("iiasadb_coverage_variables", width = "100%", height = "80vh")),
+
+                tabPanel("Regions", id = "Regions", h2("Regions"), div(style="height:80vh; overflow-y:scroll;", plotOutput("iiasadb_coverage_regions", width = "100%", height = "200vh"))),
+                tabPanel("Scenarios", id = "Scenarios", h2("Scenarios"), div(style="height:80vh; overflow-y:scroll;", plotOutput("iiasadb_coverage_scenarios", width = "100%", height = "120vh"))),
+                tabPanel("Variables", id = "Variables", h2("Variables"), DT::dataTableOutput("variables_table")),
+                tabPanel("Years", id = "Years", h2("Years"), div(style="height:80vh; overflow-y:scroll;", plotOutput("iiasadb_coverage_years", width = "100%", height = "120vh")))
     )
   )
 )))

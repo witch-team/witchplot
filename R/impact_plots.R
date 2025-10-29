@@ -4,18 +4,18 @@ SCC_plot <- function(scenplot=scenlist, regions = "World", normalization_region 
   gdp_measure <- "y" #"cc" #for consumption or "y" for GDP
   emi_sum <- "ghg" #or "co2" for only CO2 or ghg for all gases
   #Impacts and Damages computation
-  OMEGA <- get_witch("OMEGA", check_calibration = T)
-  Q <- get_witch("Q", check_calibration = T)
+  OMEGA <- get_witch("OMEGA")
+  Q <- get_witch("Q")
   Q <- Q %>% filter(iq == gdp_measure) %>% select(-iq)
-  l <- get_witch("l", check_calibration = T)
-  Q_EMI <- get_witch("Q_EMI", check_calibration = T) # nolint
+  l <- get_witch("l")
+  Q_EMI <- get_witch("Q_EMI") # nolint
   ghg <- get_witch("ghg") # to get GHGs for non-co2 sets
   if(emi_sum=="ghg") ghg_used <- unique(ghg$e) else if(emi_sum=="co2") ghg_used = c("co2")
   Q_EMI <- Q_EMI %>% filter(e %in% ghg_used) %>% group_by(pathdir, file, n, t) %>% summarize(emiall = sum(value))
   #get also BAU values
-  BAU_Q <- get_witch("BAU_Q", check_calibration = T)
+  BAU_Q <- get_witch("BAU_Q")
   BAU_Q <- BAU_Q %>% filter(iq == gdp_measure) %>% select(-iq)
-  BAU_Q_EMI <- get_witch("BAU_Q_EMI", check_calibration = T)
+  BAU_Q_EMI <- get_witch("BAU_Q_EMI")
   BAU_Q_EMI <- BAU_Q_EMI %>% filter(e %in% ghg_used) %>% group_by(pathdir, file, n, t) %>% summarize(emiall = sum(value))
   impact <- Q %>% rename(gdp=value)
   impact <- merge(impact, BAU_Q, by = c("pathdir", "file", "n", "t")); setnames(impact, "value", "gdp_bau")
@@ -23,10 +23,10 @@ SCC_plot <- function(scenplot=scenlist, regions = "World", normalization_region 
   impact <- merge(impact, BAU_Q_EMI, by = c("pathdir", "file", "n", "t")); setnames(impact, "emiall", "emi_bau")
   impact <- merge(impact, l, by = c("pathdir", "file", "n", "t")); setnames(impact, "value", "pop")
   
-  TEMP <- get_witch("TEMP", check_calibration = T)
+  TEMP <- get_witch("TEMP")
   impact <- merge(impact, TEMP %>% filter(m=="atm") %>% select(-m), by = c("pathdir", "file", "n", "t")); setnames(impact, "value", "temp")
   #add external climate modules in case
-  MAGICCTEMP <- get_witch("MAGICCTEMP", check_calibration = T)
+  MAGICCTEMP <- get_witch("MAGICCTEMP")
   if(length(MAGICCTEMP)>0) {impact <- merge(impact, MAGICCTEMP %>% filter(m=="atm") %>% select(-m), by = c("pathdir", "file", "n", "t"), all.x = T); setnames(impact, "value", "temp_magicc6")}
   
   
@@ -39,8 +39,8 @@ SCC_plot <- function(scenplot=scenlist, regions = "World", normalization_region 
 
   #Temperature
   #temp_plot <- plot_witch(impact, varname = "temp", scenplot = scenplot_nopulse, regions = "World", ylab = "Temperature increase [deg C]", conv_factor=1, nagg="mean")
-  temp_plot <- ggplot() + geom_line(data = impact %>% filter(file %in% scenplot_nopulse & ttoyear(t) <= yearmax & ttoyear(t) >= yearmin) %>% group_by(pathdir, file, t) %>% summarise_at(., .vars=vars(str_subset(names(impact), "temp")), funs(mean)), aes(ttoyear(t),temp,colour=file), stat="identity", size=1.5, linetype = "solid") + xlab("") + ylab("Temperature [deg C]")
-  if(length(MAGICCTEMP)>0){temp_plot <- temp_plot + geom_line(data = impact %>% filter(file %in% scenplot_nopulse & ttoyear(t) <= yearmax & ttoyear(t) >= yearmin & !is.na(temp_magicc6)) %>% group_by(pathdir, file, t) %>% summarise_at(., .vars=vars(str_subset(names(impact), "temp_magicc6")), funs(mean)), aes(ttoyear(t),temp_magicc6,colour=file), stat="identity", size=1.5, linetype = "dashed") + ylab("Temp., MAGICC dashed")}
+  temp_plot <- ggplot() + geom_line(data = impact %>% filter(file %in% scenplot_nopulse & ttoyear(t) <= yearmax & ttoyear(t) >= yearmin) %>% group_by(pathdir, file, t) %>% summarise_at(., .vars=vars(str_subset(names(impact), "temp")), funs(mean)), aes(ttoyear(t),temp,colour=file), stat="identity", linewidth=1.5, linetype = "solid") + xlab("") + ylab("Temperature [deg C]")
+  if(length(MAGICCTEMP)>0){temp_plot <- temp_plot + geom_line(data = impact %>% filter(file %in% scenplot_nopulse & ttoyear(t) <= yearmax & ttoyear(t) >= yearmin & !is.na(temp_magicc6)) %>% group_by(pathdir, file, t) %>% summarise_at(., .vars=vars(str_subset(names(impact), "temp_magicc6")), funs(mean)), aes(ttoyear(t),temp_magicc6,colour=file), stat="identity", linewidth=1.5, linetype = "dashed") + ylab("Temp., MAGICC dashed")}
   
   
   

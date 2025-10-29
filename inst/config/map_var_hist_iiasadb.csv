@@ -1,0 +1,8 @@
+varname_model,set_model,element_model,var_witch,set_witch,element_witch,conv
+Primary Energy,,,TPES,,,0.0036
+Emissions|CO2,,,Q_EMI,e,co2,1e3*(44/12)
+Emissions|CO2|Energy,,,Q_EMI,e,co2ffi,1e3*(44/12)
+Emissions|CH4,,,Q_EMI,e,ch4,1e3*(44/12)/28
+Population,,,l,,,1
+GDP|MER,,,Q,iq,y,1e3
+E,ghg,co2,Q_EMI,e,co2,44/12

@@ -12,9 +12,9 @@ plot_witch <- function(data, varname="value", regions="World", scenplot=scenlist
   p <- ggplot() + xlab("") +ylab(ylab)
   if(ylim0) p <- p + ylim(0, NA)
   if(regions[1]=="World" | length(regions)==1){
-    p <- p + geom_line(data = data %>% filter(file!="historical"), aes(ttoyear(t),plot_value,colour=file), stat="identity", linewidth=line_size) + geom_line(data = data %>% filter(file=="historical"), aes(ttoyear(t),plot_value,colour=file), stat="identity", size=0.5)
+    p <- p + geom_line(data = data %>% filter(file!="historical"), aes(ttoyear(t),plot_value,colour=file), stat="identity", linewidth=line_size) + geom_line(data = data %>% filter(file=="historical"), aes(ttoyear(t),plot_value,colour=file), stat="identity", linewidth=0.5)
   }else{
-    p <- p + geom_line(data = data %>% filter(file!="historical"), aes(ttoyear(t),plot_value,colour=n, linetype=file), stat="identity", linewidth=line_size) + scale_colour_manual(values = region_palette) + geom_line(data = data %>% filter(file=="historical"), aes(ttoyear(t),plot_value,colour=n, linetype=file), stat="identity", size=0.5)
+    p <- p + geom_line(data = data %>% filter(file!="historical"), aes(ttoyear(t),plot_value,colour=n, linetype=file), stat="identity", linewidth=line_size) + scale_colour_manual(values = region_palette) + geom_line(data = data %>% filter(file=="historical"), aes(ttoyear(t),plot_value,colour=n, linetype=file), stat="identity", linewidth=0.5)
   }
   if(length(fullpathdir)!=1){p <- p + facet_grid(pathdir ~ .)}
   return(p)
@@ -88,7 +88,7 @@ get_plot_witch <- function(variable_name, additional_set="na", additional_set_id
       #print(str(allfilesdata)); assign("test",allfilesdata,envir = .GlobalEnv)
       allfilesdata <- as.data.table(allfilesdata)
       #try for RCP:
-      p <- ggplot(data=subset(allfilesdata),aes(ttoyear(t),value, colour=get(line_colour), linetype=get(line_type))) + geom_line(stat="identity", size=line_size) + xlab("year") +ylab(unit_conversion$unit)
+      p <- ggplot(data=subset(allfilesdata),aes(ttoyear(t),value, colour=get(line_colour), linetype=get(line_type))) + geom_line(stat="identity", linewidth=line_size) + xlab("year") +ylab(unit_conversion$unit)
       if(show_legend_title){p <- p + labs(linetype=line_type, colour=line_colour)}else{p <- p + theme(legend.title=element_blank())} 
       if(show_numbers_2100){p <- p + geom_text(data=subset(allfilesdata, t==20), aes(x=2100, y=value, label=round(value, 2)))}
       if(length(fullpathdir)!=1){p <- p + facet_grid(pathdir ~ .)}
@@ -167,7 +167,7 @@ getvar_witchhist <- function(varname, unit_conversion=1, hist_varname=varname, a
     for(s in 1:length(additional_sets)) tempvar[[names(additional_sets[s])]] <- additional_sets[s]
   }
   tempvar$value <- tempvar$value * unit_conversion;
-  tempvar <- add_historical_values(tempvar, varname = hist_varname, check_calibration = T)
+  tempvar <- add_historical_values(tempvar, varname = hist_varname)
   tempvar <- tempvar %>% filter(n %in% n_model)
   print(ggplot(tempvar) + geom_line(aes(ttoyear(t), value, color=file, linetype=n)) + xlab("") + ylab(ylab))
   assign(varname, tempvar, envir = .GlobalEnv)

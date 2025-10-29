@@ -2,24 +2,34 @@
 .Rhistory
 .Rapp.history
 .RData
-plotgdx_witch_*.R
-plotgdx_rice_*.R
-plotgdx_fidelio_*.R
+.Rproj.user/
+
 # Example code in package build process
 *-Ex.R
+
 # RStudio files
 .Rproj.user/
-# produced vignettes
+
+# Produced vignettes
 vignettes/*.html
 vignettes/*.pdf
-!plotgdx_witch.R
-!plotgdx_rice.R
-!plotgdx_fidelio.R
+
+# OAuth tokens
 .httr-oauth
-.Rproj.user
-# data from online deployed gdxcompaR
-gdxcompaR/witch/*.RData
-gdxcompaR/witch/rsconnect
-gdxcompaR/iiasadb/*.RData
-gdxcompaR/iiasadb/rsconnect
+
+# Data from online deployed gdxcompaR
+inst/gdxcompaR/witch/*.RData
+inst/gdxcompaR/witch/rsconnect
+inst/gdxcompaR/iiasadb/*.RData
+inst/gdxcompaR/iiasadb/rsconnect
 iiasa_credentials.yml
+
+# Package builds
+*.tar.gz
+
+# Claude Code settings
+.claude/
+
+# Development files (optional - remove these lines to track them)
+dev_workflow.R
+ROXYGEN_WORKFLOW.md

@@ -1,0 +1,48 @@
+Package: witchplot
+Type: Package
+Title: Interactive Visualization Toolkit for GAMS IAM Model Results (WITCH, RICE, DICE, FIDELIO)
+Version: 1.0.0
+Date: 2025-10-24
+Authors@R: c(
+    person("Johannes", "Emmerling", role=c("aut", "cre"), email="johannes.emmerling@cmcc.it"),
+    person("WITCH Team", role="ctb"))
+Description: Dynamic comparison and plotting tools for Integrated Assessment Model (IAM) results from GAMS models including WITCH, RICE50+, DICE, FIDELIO, and IIASADB. Provides Shiny-based interactive applications for scenario comparison, regional analysis, and comprehensive visualization of energy-climate model outputs.
+License: MIT + file LICENSE
+Copyright: Copyright (c) 2025 Johannes Emmerling and WITCH Team
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 4.0.0)
+Imports:
+    data.table,
+    stringr,
+    ggplot2,
+    dplyr,
+    tidyr,
+    shiny,
+    shinyWidgets,
+    plotly,
+    witchtools,
+    gdxtools,
+    memoise,
+    scales,
+    RColorBrewer,
+    openxlsx,
+    countrycode
+Suggests:
+    ggpubr,
+    purrr,
+    forcats,
+    arrow,
+    rworldmap,
+    sf,
+    rnaturalearth,
+    reldist,
+    bslib,
+    shinythemes,
+    gsubfn,
+    rlang,
+    docopt,
+    tidytidbits,
+    gdxrrw,
+    testthat (>= 3.0.0)
+RoxygenNote: 7.2.0

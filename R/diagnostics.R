@@ -24,16 +24,16 @@ diagnostics_plots <- function(scenplot=scenlist){
     paste0(formatC(t %/% 60 %% 60, width = 2, format = "d", flag = "0"),":",formatC(t %% 60, width = 2, format = "d", flag = "0"))
   )}
   plot_time <- ggplot(scenarios) + geom_bar(aes(file, total_time/60), stat = "identity") + ylab("Total duration (minutes)") + xlab("") + facet_grid(. ~ pathdir) + geom_text(aes(x=file, y=total_time/60+10, label=time_dhms(total_time)))
-  
+
   iterations <- iterations %>% mutate(ONI=ifelse(!is.na(optimal), "Optimal", ifelse(is.na(feasible), "Infeasible", "Nonoptimal")), one=1) %>% mutate(siter=as.numeric(gsub("i","", siter))) %>% arrange(pathdir, file, siter)
-  
-  plot_iterations <- ggplot(iterations) + geom_tile(aes(file, one, fill=ONI, group=one), stat = "identity", position = "stack") + ylab("Iterations") + scale_fill_manual(values = c("Optimal"="darkgreen", "Nonoptimal"="yellow", "Infeasible"="red")) + xlab("") + theme(legend.position="none") + facet_grid(. ~ pathdir) + geom_text(data=iterations %>% group_by(file, pathdir) %>% summarize(numiter=max(siter)), aes(x=file, numiter+5, label=numiter))
-  
-  
+
+  plot_iterations <- ggplot(iterations) + geom_tile(aes(file, one, fill=ONI, group=one), stat = "identity", position = "stack") + ylab("Iterations") + scale_fill_manual(values = c("Optimal"="darkgreen", "Nonoptimal"="yellow", "Infeasible"="red")) + xlab("") + theme(legend.position="none") + facet_grid(. ~ pathdir) + geom_text(data=iterations %>% group_by(file, pathdir) %>% summarize(numiter=max(siter), .groups="drop"), aes(x=file, numiter+5, label=numiter))
+
+
   #aggregate ALLERR over runs
   allerr <- allerr %>% group_by_at(c("pathdir", file_group_columns)) %>% mutate(siter=as.numeric(gsub("i","", siter))) %>% arrange(run,siter) %>% mutate(siter=1:n()) %>% select(-run)
   plot_convergence <- ggplot(allerr) + geom_line(aes(siter, pmax(value,0.001), color=V3)) + facet_grid(. ~ pathdir + file) + ylab("Convergence") + xlab("Iteration") +  scale_y_log10(breaks = c(0.005, 0.1, 0.5, 1, 100), labels = c(0.005, 0.1, 0.5, 1, 100)) + geom_hline(yintercept = c(0.005), color="grey") + theme(legend.position = c(0.1,0.5), legend.title = element_blank(), legend.background = element_blank(), legend.key = element_blank())
-  
+
   #aggregate price_iter over runs
   price_iter <- price_iter %>% group_by_at(c("pathdir", file_group_columns, "V3", "t")) %>% mutate(siter=as.numeric(gsub("i","", siter))) %>% arrange(run,siter) %>% mutate(siter=1:n()) %>% select(-run)
   price_iter <- price_iter %>% group_by_at(c("siter", "pathdir", file_group_columns, "V3")) %>% mutate(value = value / mean(value[1])) %>% as.data.frame() #convert in starting all from 1

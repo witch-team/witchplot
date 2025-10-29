@@ -1,7 +1,7 @@
 
-add_historical_values <- function(variable, varname=deparse(substitute(variable)), scenplot=scenlist, check_calibration=T, overlap_years="model", verbose=F, iiasadb = F){
-  #have to decide what to do with years with both model and historical data: overlap_years = #historical"  or "model" 
-  if(!length(list.files(path=file.path(witch_folder, paste0("data_", reg_id)), full.names = TRUE, pattern="^data_historical(.*).gdx$", recursive = FALSE))>0) return(as.data.table(variable))
+add_historical_values <- function(variable, varname=deparse(substitute(variable)), scenplot=scenlist, check_calibration=T, overlap_years="model", verbose=TRUE, iiasadb = F){
+  #have to decide what to do with years with both model and historical data: overlap_years = #historical"  or "model"
+  if(!length(list.files(path=file.path(model_dir, paste0("data_", reg_id)), full.names = TRUE, pattern="^data_historical(.*).gdx$", recursive = FALSE))>0) return(as.data.table(variable))
   if(exists("map_var_hist")) if(!(varname %in% map_var_hist$varname_model)) return(as.data.table(variable))
  #from here process the historical data files
   variable_loaded_original <- variable
@@ -38,8 +38,8 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
   if(str_detect(varname, "HECTOR")) varname <- gsub("HECTOR", "", varname)
   
   #check which GDX file to use (all files that start with data_historical*.gdx)
-  if(!dir.exists(file.path(witch_folder, paste0("data_", reg_id[1])))) return(as.data.table(variable))
-  gdxhistlist <- list.files(path=file.path(witch_folder, paste0("data_", reg_id)), full.names = TRUE, pattern="^data_historical(.*).gdx$", recursive = FALSE)
+  if(!dir.exists(file.path(model_dir, paste0("data_", reg_id[1])))) return(as.data.table(variable))
+  gdxhistlist <- list.files(path=file.path(model_dir, paste0("data_", reg_id)), full.names = TRUE, pattern="^data_historical(.*).gdx$", recursive = FALSE)
   
   for(.gdxname in gdxhistlist){
     #print(.gdxname)
@@ -54,9 +54,9 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
   item <- grep(paste(paste0("^", tolower(varname), valid_suffix), collapse = '|'), .gdx$parameters$name, value = TRUE) #use grep with ^ to have them start by varname
   if(!check_calibration) item <- item[1] #if not check calibration, just take the first (unique) data source)
   for(.item in item){
-    for(.reg_id_file in list.files(path=file.path(witch_folder, paste0("data_", reg_id)), full.names = TRUE, pattern=basename(.gdxname), recursive = FALSE)){
+    for(.reg_id_file in list.files(path=file.path(model_dir, paste0("data_", reg_id)), full.names = TRUE, pattern=basename(.gdxname), recursive = FALSE)){
       .hist_single_one_reg_id <- as.data.table(gdx(.reg_id_file)[.item]);
-      if(.reg_id_file==list.files(path=file.path(witch_folder, paste0("data_", reg_id)), full.names = TRUE, pattern=basename(.gdxname), recursive = FALSE)[1]){.hist_single <- .hist_single_one_reg_id}else{.hist_single <- rbind(.hist_single, .hist_single_one_reg_id)}
+      if(.reg_id_file==list.files(path=file.path(model_dir, paste0("data_", reg_id)), full.names = TRUE, pattern=basename(.gdxname), recursive = FALSE)[1]){.hist_single <- .hist_single_one_reg_id}else{.hist_single <- rbind(.hist_single, .hist_single_one_reg_id)}
     }
      .hist_single$file <- gsub(paste0(tolower(varname), "_"), "", .item); 
     if(.item==item[1]){.hist <- .hist_single}else{.hist <- rbind(.hist,.hist_single)} 
@@ -65,7 +65,7 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
   #get set dependency based on /build/ folder
   use_build <- F; 
   if(use_build){
-    .gdxiso3 <- gdx(file.path(witch_folder, "input", "build", basename(.gdxname))); 
+    .gdxiso3 <- gdx(file.path(model_dir, "input", "build", basename(.gdxname))); 
     #print(str(.hist)); print(str(variable)); print(str(.gdxiso3[item[1]]))
     colnames(.hist) <- c(colnames(.gdxiso3[item[1]]), "file")	
     #in built global data have set "global", but in input folder it gets converted to iso3, so:
@@ -109,7 +109,7 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
   
   #if check_calibration, add validation as data points!
   if(check_calibration){
-    .gdx_validation <- gdx(file.path(witch_folder, paste0("data_", reg_id[1]), "data_validation.gdx")) #only first reg_id
+    .gdx_validation <- gdx(file.path(model_dir, paste0("data_", reg_id[1]), "data_validation.gdx")) #only first reg_id
     for(.item in intersect(item, .gdx_validation$parameters$name)){.hist_validation_single <- as.data.table(.gdx_validation[.item]); .hist_validation_single$file <- gsub(paste0(tolower(varname), "_"), "", .item); if(.item==item[1]){.hist_validation <- .hist_validation_single}else{.hist_validation <- rbind(.hist_validation,.hist_validation_single)} }
     if(exists(".hist_validation") & !exists("map_var_hist")){
     if(!("n" %in% colnames(.hist_validation))){.hist_validation$n = "World"}

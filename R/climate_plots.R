@@ -1,31 +1,31 @@
 #Plots for WITCH runs with climate damages or climate_datas
 
 climate_plot <- function(scenplot=scenlist, regions = "World"){
-  Q_EMI <- get_witch("Q_EMI", check_calibration = T)
+  Q_EMI <- get_witch("Q_EMI")
   ghg <- get_witch("ghg") # to get GHGs for non-co2 sets
   ghgs <- unique(ghg$e)
   Q_EMI <- Q_EMI %>% filter(e %in% ghgs) %>% group_by(pathdir, file, n, t) %>% summarize(emiall = sum(value), emico2=sum(value[e=="co2"])) %>% mutate(nonco2=emiall-emico2)
   #get also BAU values
-  BAU_Q_EMI <- get_witch("BAU_Q_EMI", check_calibration = T)
+  BAU_Q_EMI <- get_witch("BAU_Q_EMI")
   BAU_Q_EMI <- BAU_Q_EMI %>% filter(e %in% ghgs) %>% group_by(pathdir, file, n, t) %>% summarize(emi_bau = sum(value), co2_bau=sum(value[e=="co2"]))
   climate_data <- Q_EMI %>% rename(emi=emiall, co2=emico2)
   climate_data <- merge(climate_data, BAU_Q_EMI, by = c("pathdir", "file", "n", "t"), all = T)
   
-  TRF <- get_witch("TRF", check_calibration = T)
+  TRF <- get_witch("TRF")
   climate_data <- merge(climate_data, TRF, by = c("pathdir", "file", "n", "t"), all = T); setnames(climate_data, "value", "trf")
   #add external climate modules in case
-  MAGICCTRF <- get_witch("MAGICCTRF", check_calibration = T)
+  MAGICCTRF <- get_witch("MAGICCTRF")
   if(length(MAGICCTRF)>0) {setnames(MAGICCTRF, "value", "trf_magicc6"); climate_data <- merge(climate_data, MAGICCTRF, by = c("pathdir", "file", "n", "t"), all = T)}
-  HECTORTRF <- get_witch("HECTORTRF", check_calibration = T)
+  HECTORTRF <- get_witch("HECTORTRF")
   if(length(HECTORTRF)>0) {setnames(HECTORTRF, "value", "trf_hector"); climate_data <- merge(climate_data, HECTORTRF, by = c("pathdir", "file", "n", "t"), all = T)}
   
   
-  TEMP <- get_witch("TEMP", check_calibration = T)
+  TEMP <- get_witch("TEMP")
   climate_data <- merge(climate_data, TEMP %>% filter(m=="atm") %>% select(-m), by = c("pathdir", "file", "n", "t"), all = T); setnames(climate_data, "value", "temp")
   #add external climate modules in case
-  MAGICCTEMP <- get_witch("MAGICCTEMP", check_calibration = T) 
+  MAGICCTEMP <- get_witch("MAGICCTEMP") 
   if(length(MAGICCTEMP)>0) {setnames(MAGICCTEMP, "value", "temp_magicc6"); climate_data <- merge(climate_data, MAGICCTEMP %>% filter(m=="atm") %>% select(-m), by = c("pathdir", "file", "n", "t"), all = T)}
-  HECTORTEMP <- get_witch("HECTORTEMP", check_calibration = T)
+  HECTORTEMP <- get_witch("HECTORTEMP")
   if(length(HECTORTEMP)>0) {setnames(HECTORTEMP, "value", "temp_hector"); climate_data <- merge(climate_data, HECTORTEMP %>% filter(m=="atm") %>% select(-m), by = c("pathdir", "file", "n", "t"), all = T); }
   
   #PLOTS:

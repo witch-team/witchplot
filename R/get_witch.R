@@ -1,31 +1,37 @@
-# Load GDX of all scenarios and basic pre-processing 
-get_witch <- function(variable_name, 
-                      scenplot = scenlist, 
-                      check_calibration = TRUE, 
-                      field = "l", 
-                      postprocesssuffix = NULL, 
+# Load GDX of all scenarios and basic pre-processing
+get_witch <- function(variable_name,
+                      scenplot = scenlist,
+                      field = "l",
+                      postprocesssuffix = NULL,
                       skip_restrict_regions = FALSE){
+  # Get add_historical option from global variable or options
+  add_historical <- if(exists("historical", envir=.GlobalEnv)) get("historical", envir=.GlobalEnv) else getOption("add_historical", TRUE)
+
   for (current_pathdir in fullpathdir){
     for (file in filelist){
       if(file.exists(file.path(current_pathdir, paste0(file,".gdx")))){
-        mygdx <- gdx(file.path(current_pathdir, paste0(file,".gdx")))
+        mygdx <- gdxtools::gdx(file.path(current_pathdir, paste0(file,".gdx")))
         if(!is.null(postprocesssuffix)) {
-          mygdx <- gdx(file.path(current_pathdir, postprocesssuffix, 
+          mygdx <- gdxtools::gdx(file.path(current_pathdir, postprocesssuffix,
                                  paste0(paste0(file, "_", postprocesssuffix),
                                         ".gdx")))}
-        if(is.element(variable_name, all_items(mygdx)$variables) | 
-           is.element(variable_name, all_items(mygdx)$parameters) | 
-           is.element(variable_name, all_items(mygdx)$sets) | 
-           is.element(variable_name, all_items(mygdx)$variables) | 
-           is.element(variable_name, all_items(mygdx)$equations)){
-          tempdata <- data.table(mygdx[variable_name, field = field])
-          if(is.element(variable_name, all_items(mygdx)$equations)) names(tempdata)[1:2] <- c("t", "n")
+        if(is.element(variable_name, gdxtools::all_items(mygdx)$variables) |
+           is.element(variable_name, gdxtools::all_items(mygdx)$parameters) |
+           is.element(variable_name, gdxtools::all_items(mygdx)$sets) |
+           is.element(variable_name, gdxtools::all_items(mygdx)$variables) |
+           is.element(variable_name, gdxtools::all_items(mygdx)$equations)){
+          tempdata <- data.table::data.table(mygdx[variable_name, field = field])
+          if(is.element(variable_name, gdxtools::all_items(mygdx)$equations)) names(tempdata)[1:2] <- c("t", "n")
           if(variable_name %in% c("E", "EIND", "MIU", "ABATEDEMI", "ABATECOST") & !("ghg" %in% names(tempdata))) tempdata$ghg <- "co2"
           if(!("n" %in% names(tempdata))) tempdata$n <- "World"
           tempdata$file <- as.character(file)
-          #add time step
-          if("t" %in% names(tempdata)){ 
-            if(flexible_timestep) if("tlen" %in% all_items(mygdx)$parameters) tempdata <- tempdata %>% left_join(mygdx["tlen"] %>% rename(tlen=value)) else tempdata$tlen = tstep
+          #add time step (but only if not loading sets or if there are no other dimensions beyond t, n, file, pathdir)
+          if("t" %in% names(tempdata) && !is.element(variable_name, gdxtools::all_items(mygdx)$sets)){
+            # Only add tlen if there are no other set dimensions (beyond t, n, file, pathdir, value)
+            extra_dims <- setdiff(names(tempdata), c("t", "n", "file", "pathdir", "value"))
+            if(length(extra_dims) == 0) {
+              if(flexible_timestep) if("tlen" %in% gdxtools::all_items(mygdx)$parameters) tempdata <- tempdata %>% left_join(mygdx["tlen"] %>% rename(tlen=value), by = "t") else tempdata$tlen = tstep
+            }
           }
           if(length(fullpathdir)>=1){
             tempdata$pathdir <- basename(current_pathdir)
@@ -76,14 +82,13 @@ get_witch <- function(variable_name,
       }}
     
     #try adding historical values
-    if(historical & !(is.element(variable_name, all_items(mygdx)$sets))) {
-      allfilesdata <- add_historical_values(allfilesdata, 
-                                            varname = variable_name, 
-                                            scenplot = scenplot, 
-                                            check_calibration = check_calibration, 
+    if(add_historical & !(is.element(variable_name, gdxtools::all_items(mygdx)$sets))) {
+      allfilesdata <- add_historical_values(allfilesdata,
+                                            varname = variable_name,
+                                            scenplot = scenplot,
                                             verbose = FALSE)}
     # also save as data.table
-    allfilesdata <- as.data.table(allfilesdata)
+    allfilesdata <- data.table::as.data.table(allfilesdata)
     #in case nice_region_names exist map region names for those with a nice name
     if(exists("nice_region_names") & !unique(allfilesdata$n)[1]=="World") allfilesdata <- allfilesdata %>% mutate(n = dplyr::recode(n, !!!nice_region_names))
     #in case restrict_regions exists keep only these regions

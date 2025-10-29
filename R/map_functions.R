@@ -30,9 +30,32 @@ witchmap <- function(variable_report, file_report=scenlist[1], t_report=20, scal
   #now get WITCH regions
   conf <- get_witch("conf", scenplot = file_report)
   reg_id_map <- subset(conf, file==scenlist[1] & pathdir==basename(fullpathdir[1]) & V1=="regions")$V2
-  mod.countries.filename = file.path(witch_folder, paste0("data_", reg_id_map, "/regions.inc"))
+
+  # Check if model_dir exists and regions.inc file is available
+  if(is.null(model_dir)){
+    warning("Cannot create map: model_dir is not available. Region mapping file (regions.inc) not found.")
+    return(invisible(NULL))
+  }
+
+  mod.countries.filename = file.path(model_dir, paste0("data_", reg_id_map, "/regions.inc"))
+
+  if(!file.exists(mod.countries.filename)){
+    warning(sprintf("Cannot create map: Region mapping file not found: '%s'\nPlease ensure model_dir contains the required data_<reg_id>/regions.inc file.", mod.countries.filename))
+    return(invisible(NULL))
+  }
+
   # Read mod_countries
-  mod.countries = readLines(mod.countries.filename)
+  mod.countries = tryCatch(
+    readLines(mod.countries.filename),
+    error = function(e) {
+      warning(sprintf("Cannot read region mapping file '%s': %s", mod.countries.filename, e$message))
+      return(NULL)
+    }
+  )
+
+  if(is.null(mod.countries)){
+    return(invisible(NULL))
+  }
   mod.countries = mod.countries[mod.countries!=""]                                  # Remove empty lines
   mod.countries = mod.countries[!str_detect(mod.countries,"^\\*")]                  # Remove * comments
   mod.countries = str_trim(str_split_fixed(mod.countries,"#",2)[,1])                # Remove # comments
@@ -190,9 +213,9 @@ map_simple <- function(data, yearmap=2100, title="", scenplot=scenlist, legend_t
   sf::sf_use_s2(FALSE) #to avoid errors
   world <- ne_countries(scale = "medium", returnclass = "sf")
   #add geometry
-  world <- suppressWarnings(cbind(world, st_coordinates(st_centroid(world$geometry))))
+  world <- suppressWarnings(cbind(world, sf::st_coordinates(sf::st_centroid(world$geometry))))
   #get model iso3 mapping
-  mod.countries = readLines(file.path(witch_folder, paste0("data_", reg_id, "/regions.inc")))
+  mod.countries = readLines(file.path(model_dir, paste0("data_", reg_id, "/regions.inc")))
   mod.countries = mod.countries[mod.countries != ""]                     # Remove empty lines
   mod.countries = mod.countries[!str_detect(mod.countries, "^\\*")]      # Remove * comments
   mod.countries = str_trim(str_split_fixed(mod.countries, "#", 2)[, 1])  # Remove # comments
@@ -202,11 +225,11 @@ map_simple <- function(data, yearmap=2100, title="", scenplot=scenlist, legend_t
   setnames(mod.countries, c("n", "iso_a3"))
   #Add data to iso3 list
   data <- data %>% filter(t == yeartot(yearmap) & file %in% scenplot)
-  data <- data %>% full_join(mod.countries, relationship = "many-to-many")
+  data <- suppressMessages(data %>% full_join(mod.countries, by = "n", relationship = "many-to-many"))
   #Add data to world polygon
-  data_map <- data %>% select(t, file, pathdir, value, iso_a3) %>% full_join(world, relationship = "many-to-many") %>% filter(!is.na(value) & !is.na(iso_a3) & !is.na(file)) %>% as.data.frame()
+  data_map <- suppressMessages(data %>% select(t, file, pathdir, value, iso_a3) %>% full_join(world, by = "iso_a3", relationship = "many-to-many") %>% filter(!is.na(value) & !is.na(iso_a3) & !is.na(file)) %>% as.data.frame())
   p_map <- ggplot(data = data_map) + geom_sf(aes(fill = value, geometry = geometry)) +  scale_fill_viridis_c(option = "plasma", direction = -1) + ggtitle(title) + labs(fill = legend_title) + theme_bw() + theme(strip.background = element_rect(fill = "white"))
-  if(length(scenplot)>1) p_map <- p_map + facet_wrap(file ~ .)
+  if(length(scenplot)>1) p_map <- p_map + facet_wrap(file ~ ., ncol = 1)
   #remove Antarctica
   p_map <- p_map + coord_sf(ylim = c(-50, 90))
   saveplot("Map", width = 12, height = 10)
@@ -220,9 +243,9 @@ plot_map_region_definition <- function(regional_focus="World") {
   #regional_focus = "Europe" or "World"
   world <- ne_countries(scale = "medium", returnclass = "sf")
   #add geometry
-  world <- suppressWarnings(cbind(world, st_coordinates(st_centroid(world$geometry))))
+  world <- suppressWarnings(cbind(world, sf::st_coordinates(sf::st_centroid(world$geometry))))
   #get model iso3 mapping
-  mod.countries = readLines(file.path(witch_folder, paste0("data_", reg_id, "/regions.inc")))
+  mod.countries = readLines(file.path(model_dir, paste0("data_", reg_id, "/regions.inc")))
   mod.countries = mod.countries[mod.countries != ""]                     # Remove empty lines
   mod.countries = mod.countries[!str_detect(mod.countries, "^\\*")]      # Remove * comments
   mod.countries = str_trim(str_split_fixed(mod.countries, "#", 2)[, 1])  # Remove # comments
@@ -245,19 +268,22 @@ tatm <- subset(tatm_data, file %in% scenplot & ttoyear(t)==yearplot)
 df <- read_parquet(file.path(pathadj, "data/coefficients_modmean.parquet"))
 df <- tatm %>% cross_join(df)
 df <- df %>% mutate(TATM = gmt * value)
+# Get world map data for borders
+world_map <- map_data("world")
 ggplot() +
     geom_tile(data = df, aes(x = lon, y = lat, fill = TATM)) +
+    geom_polygon(data = world_map, aes(x = long, y = lat, group = group),
+                 colour = "black", fill = NA, linewidth = 0.25) +
     ggtitle(paste("Downscaled temperature change in", yearplot)) +
     scale_fill_steps(
       low = "white",
       # mid = "white",
       high = "red",
-      # midpoint = 1, 
+      # midpoint = 1,
       n.break = 7
     ) +
-    borders("world", colour = "black", size = .25) +
     theme_minimal() +
-    facet_wrap(file ~ .) +
+    facet_wrap(file ~ ., ncol = 1) +
     labs(x="", y="", fill="°C")
 }
 

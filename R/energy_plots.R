@@ -1,7 +1,7 @@
 
 
 Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin, yearmax), plot_type="area", scenplot=scenlist, plot_name="Primary Energy Mix", add_total_tpes = F){
-  if(length(fullpathdir)!=1){print("PES mix REGIONAL only for one directory at a time!");break}
+  if(length(fullpathdir)!=1){stop("PES mix REGIONAL only for one directory at a time!"); return(invisible(NULL))}
     Q_FUEL <- get_witch("Q_FUEL"); Q_FUEL_pes <- Q_FUEL %>% mutate(value=value*0.0036) %>% rename(j=fuel)
     #if fuel==uranium multiply by the efficiency of 0.3333
     Q_FUEL_pes <- Q_FUEL_pes %>% mutate(value=ifelse(j=="uranium", value*0.3333, value))
@@ -57,7 +57,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
 
 
 Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(yearmin, yearmax), plot_type="area", plot_name="Electricity Mix", scenplot=scenlist, add_total_elec=F){
-  if(length(fullpathdir)!=1){print("Electricity mix only for one directory at a time!");break}
+  if(length(fullpathdir)!=1){stop("Electricity mix only for one directory at a time!"); return(invisible(NULL))}
     Q_IN <- get_witch("Q_IN"); Q_IN_el <- Q_IN %>% mutate(value=value * 0.0036)
     csi_el <- get_witch("csi") %>% rename(csi=value) %>% mutate(jfed=gsub("_new", "", jfed)) %>% filter(jfed %in% c("eloil", "elpb", "elpc", "elgastr", "elbigcc", "elcigcc", "elgasccs", "elpc_ccs", "elpc_oxy"))
     JFED <- merge(Q_IN_el, csi_el, by = c("t", "n", file_group_columns, "pathdir", "fuel", "jfed"), all=TRUE)
@@ -159,8 +159,8 @@ Energy_Trade <- function(fuelplot=c("oil", "coal", "gas"), scenplot=scenlist, ad
 
 Investment_Plot <- function(regions=witch_regions, scenplot=scenlist, match_hist_inv = F){
   if(regions[1]=="World") regions <- witch_regions
-  I_EN <- get_witch("I_EN", check_calibration = T)
-  I_RD_inv = get_witch("I_RD", check_calibration = T)
+  I_EN <- get_witch("I_EN")
+  I_RD_inv = get_witch("I_RD")
   I_EN_sum <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% summarize(value=sum(value))
   I_RD_inv <- I_RD_inv %>% mutate(rd = dplyr::recode(rd, !!!c("en"="Energy Efficiency","neladvbio"="Advanced Biofuels","battery"="Batteries", "fuelcell"="Hydrogen")))
   I_RD_inv <- I_RD_inv %>% rename(category="rd") %>% mutate(sector="Energy RnD")
@@ -171,7 +171,7 @@ Investment_Plot <- function(regions=witch_regions, scenplot=scenlist, match_hist
   I_EN_CCS <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% filter(jinv %in% c("elcigcc", "elgasccs", "elbigcc", "nelcoalccs")) %>% summarize(value=sum(value)) %>% mutate(category="Fossils with CCS")
   j_stor <- unique(get_witch("j_stor")$j)
   I_EN_Storage <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% filter(jinv %in% j_stor | jinv=="str_storage") %>% summarize(value=sum(value)) %>% mutate(category="Storage")
-  I_EN_GRID <- get_witch("I_EN_GRID", check_calibration = T)
+  I_EN_GRID <- get_witch("I_EN_GRID")
   I_EN_GRID$category <- "Grid"
   I_EN_categorized <- rbind(I_EN_Renewables, I_EN_CCS, I_EN_FossilFuels, I_EN_Nuclear, I_EN_Hydrogen, I_EN_GRID, I_EN_Storage)
   I_EN_categorized$sector <- "Power supply"
@@ -179,7 +179,7 @@ Investment_Plot <- function(regions=witch_regions, scenplot=scenlist, match_hist
   I_TRANSPORT_lowcarbon <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% filter(jinv %in% c("edv", "edv_stfr", "plg_hybrid", "plg_hbd_stfr")) %>% summarize(value=sum(value)) %>% mutate(category="Electric Vehicles")
   I_TRANSPORT <- rbind(I_TRANSPORT_trad, I_TRANSPORT_lowcarbon); 
   I_inv <- get_witch("I") %>% dplyr::rename(category=g) %>% mutate(sector="Final Good") %>% filter(category=="fg")
-  I_OUT_inv <- get_witch("I_OUT", check_calibration = T) %>% rename(category=f) %>% filter(category=="oil") %>% mutate(category="Oil Extraction") %>% mutate(sector="Fuel supply")
+  I_OUT_inv <- get_witch("I_OUT") %>% rename(category=f) %>% filter(category=="oil") %>% mutate(category="Oil Extraction") %>% mutate(sector="Fuel supply")
   Investment_Energy <- rbind(as.data.frame(I_EN_categorized), I_RD_inv, I_OUT_inv, I_inv)
   Investment_Energy_historical <- Investment_Energy %>% filter(file=="historical_iea") %>% filter(ttoyear(t)==2020) %>% mutate(file="IEA (2020)", value_annualized=value * 1e3)
   

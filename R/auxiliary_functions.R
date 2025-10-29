@@ -32,8 +32,8 @@ saveplot <- function(plotname, width=7, height=5, text_size=16, suffix="", trans
   if(figure_format=="pdf"){plot_device=cairo_pdf}else{plot_device=figure_format}
   if(figure_format=="eps"){plot_device=cairo_ps}
   #device=cairo_pdf makes PDFs work with greek symbols etc.
-  if(!exists("legend_position")){legend_position = "bottom"}
-  if(legend_position=="bottom"){legend_direction="horizontal"}else{legend_direction="vertical"}
+  legend_position <- "bottom"
+  legend_direction <- "horizontal"
   if(transparent){transparent_background <- theme(legend.background = element_blank(), panel.background = element_blank(), plot.background = element_rect(fill = "transparent",colour = NA))}else{transparent_background = NULL}
   print(ggplot2::last_plot()) 
   if(!deploy_online){

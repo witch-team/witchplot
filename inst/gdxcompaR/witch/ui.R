@@ -5,7 +5,7 @@
 
 #only if deployed online
 deploy_online <<- F
-if(!exists("witch_folder")){
+if(!exists("model_dir")){
   load(file="allvariables.Rdata", envir = .GlobalEnv)
   #Install and load packages
   require_package <- function(package){
@@ -42,37 +42,28 @@ sidebar_ui <- sidebarPanel(
       checkboxInput("ylim_zero",
                     "ymin=0",
                     value = FALSE)),
-  div(style="display:inline-block",radioButtons("field", "", choiceNames = c("l","up","lo"), choiceValues = c("l","up","lo"), inline = TRUE)),
+  tags$div(style="display:inline-block",
+    tags$label("Show:", style="display:inline-block; margin-right: 5px;"),
+    div(style="display:inline-block", radioButtons("field", "", choiceNames = c("l","up","lo"), choiceValues = c("l","up","lo"), inline = TRUE))
+  ),
   div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot"))
 )
 
 tabs_ui <- tabsetPanel(type = "tabs", id = "tabs",
-                       
+
                        tabPanel("gdxcompaR", id = "gdxcompaR", h3(textOutput("varname")),plotOutput("gdxompaRplot", width = "100%", height = "80vh")),
-                       tabPanel("gdxcompaRly (BETA)", id = "gdxcompaRly", plotlyOutput("gdxompaRplotly", width = "100%", height = "80vh")),                    
                        tabPanel("Diagnostics", id = "Diagnostics", h2("Diagnostics of model runs"),plotOutput("Diagnostics", width = "100%", height = "80vh")),
-                       tabPanel("Energy Mix", id = "Energy Mix", 
-                                div(style="display:inline-block",selectInput("mix_y_value_selected", "Plot value or share:", c("value", "share") , size=1, selectize = F, multiple = F, selected = "value")), 
+                       tabPanel("Energy Mix", id = "Energy Mix",
+                                div(style="display:inline-block",selectInput("mix_y_value_selected", "Plot value or share:", c("value", "share") , size=1, selectize = F, multiple = F, selected = "value")),
                                 div(style="display:inline-block",selectInput("mix_plot_type_selected", "Plot Type:", c("area", "line", "bar") , size=1, selectize = F, multiple = F, selected = "area")),
                                 h2("Energy Mix"),plotOutput("energymixplot", width = "100%", height = "80vh")),
-                       tabPanel("Electricity Mix", id = "Electricity Mix", 
-                                div(style="display:inline-block",selectInput("mix_y_value_selected", "Plot value or share:", c("value", "share") , size=1, selectize = F, multiple = F, selected = "value")), 
+                       tabPanel("Electricity Mix", id = "Electricity Mix",
+                                div(style="display:inline-block",selectInput("mix_y_value_selected", "Plot value or share:", c("value", "share") , size=1, selectize = F, multiple = F, selected = "value")),
                                 div(style="display:inline-block",selectInput("mix_plot_type_selected", "Plot Type:", c("area", "line", "bar") , size=1, selectize = F, multiple = F, selected = "area")),
                                 h2("Electricity Mix"),plotOutput("electricitymixplot", width = "100%", height = "80vh")),
                        tabPanel("Investment", id = "Investment", h2("Investment"),plotOutput("investmentplot", width = "100%", height = "80vh")),
                        tabPanel("Policy Cost", id = "Policy Cost", h2("Policy Cost"),p("Select BAU scenario under 'scenarios'."),plotOutput("policycostplot", width = "100%", height = "80vh")),
-                       tabPanel("Intensity Plot", id = "Intensity Plot", h2("Energy and Carbon Intensity"),plotOutput("intensityplot", width = "100%", height = "80vh")),
-                       tabPanel("Impact Map", id = "Impact Map", h2("GDP Impact [% loss wrt BAU]"),plotOutput("impactmap", width = "100%", height = "80vh")),
-                       tabPanel("Climate", id = "climate", h2("The Climate"),plotOutput("climate_plot", width = "100%", height = "80vh")),
-                       tabPanel("SCC", id = "SCC", 
-                                div(style="display:inline-block",selectInput("scc_normalization_region", "Normalization region:", c("World", witch_regions) , size=1, selectize = F, multiple = F, selected = "World")),
-                                h2("Social Cost of Carbon"),plotOutput("SCC_plot", width = "100%", height = "80vh")),
-                        tabPanel("Inequality", id = "Inequality", 
-                                div(style="display:inline-block",selectInput("inequality_plot_type_selected", "Plot Type:", c("quantiles", "gini", "lorenz_curve", "distribution") , size=1, selectize = F, multiple = F, selected = "Quantiles")),
-                                div(style="display:inline-block",selectInput("inequality_value_share", "Plot value or share:", c("value", "share") , size=1, selectize = F, multiple = F, selected = "value")), 
-                                h2("Inequality Plots"),plotOutput("inequalityplot", width = "100%", height = "80vh"))
-  
-                       
+                       tabPanel("Intensity Plot", id = "Intensity Plot", h2("Energy and Carbon Intensity"),plotOutput("intensityplot", width = "100%", height = "80vh"))
 )
 
 ui <- fluidPage(

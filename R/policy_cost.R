@@ -169,7 +169,7 @@ Social_Cost_of_Carbon <- function(regions=witch_regions, scenplot=scenlist){
   SCC$SCC <- (-1) * (m_eqq_emi_tree$value / m_eqq_y$value) * 1000 / (44/12)
   SCC$value <- NULL; #SCC$pathdir <- NULL
   
-  p <- ggplot(subset(SCC, n %in% regions & ttoyear(t) <= yearmax & ttoyear(t)>=2015 & file %in% scenplot),aes(ttoyear(t),SCC,colour=file)) + geom_line(stat="identity", size=1.2) + xlab("year") +ylab("$/tCO2")
+  p <- ggplot(subset(SCC, n %in% regions & ttoyear(t) <= yearmax & ttoyear(t)>=2015 & file %in% scenplot),aes(ttoyear(t),SCC,colour=file)) + geom_line(stat="identity", linewidth=1.2) + xlab("year") +ylab("$/tCO2")
   if(length(regions)>1){p <- p + facet_grid(. ~ n, scales="free")}
   if(length(fullpathdir)!=1){p <- p + facet_grid(pathdir ~ .)}
   saveplot("Social Cost of Carbon")
