@@ -1,6 +1,4 @@
-# witchplot
-
-  
+# witchplot <img src="man/figures/logo.png" align="right" height="139" alt="" />
 
 Interactive Visualization Toolkit for GAMS IAM Model Results (WITCH, RICE, DICE, FIDELIO, ...) with the aim to make model results easily accessible, able to validate, and comparable with an open source tool, see, e.g., https://doi.org/10.12688/openreseurope.18824.2.
 
