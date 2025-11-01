@@ -29,42 +29,23 @@ witchmap <- function(variable_report, file_report=scenlist[1], t_report=20, scal
   
   #now get WITCH regions
   conf <- get_witch("conf", scenplot = file_report)
-  reg_id_map <- subset(conf, file==scenlist[1] & pathdir==basename(fullpathdir[1]) & V1=="regions")$V2
+  reg_id_map <- subset(conf, file==scenlist[1] & pathdir==basename(results_dir[1]) & V1=="regions")$V2
 
-  # Check if model_dir exists and regions.inc file is available
-  if(is.null(model_dir)){
-    warning("Cannot create map: model_dir is not available. Region mapping file (regions.inc) not found.")
+  # Get region mapping from witchtools
+  if(!requireNamespace("witchtools", quietly = TRUE)){
+    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: remotes::install_github('witch-team/witchtools')")
     return(invisible(NULL))
   }
 
-  mod.countries.filename = file.path(model_dir, paste0("data_", reg_id_map, "/regions.inc"))
-
-  if(!file.exists(mod.countries.filename)){
-    warning(sprintf("Cannot create map: Region mapping file not found: '%s'\nPlease ensure model_dir contains the required data_<reg_id>/regions.inc file.", mod.countries.filename))
+  if(!(reg_id_map %in% names(witchtools::region_mappings))){
+    warning(sprintf("Cannot create map: Region mapping '%s' not found in witchtools::region_mappings.\nAvailable mappings: %s",
+                    reg_id_map, paste(names(witchtools::region_mappings), collapse=", ")))
     return(invisible(NULL))
   }
 
-  # Read mod_countries
-  mod.countries = tryCatch(
-    readLines(mod.countries.filename),
-    error = function(e) {
-      warning(sprintf("Cannot read region mapping file '%s': %s", mod.countries.filename, e$message))
-      return(NULL)
-    }
-  )
-
-  if(is.null(mod.countries)){
-    return(invisible(NULL))
-  }
-  mod.countries = mod.countries[mod.countries!=""]                                  # Remove empty lines
-  mod.countries = mod.countries[!str_detect(mod.countries,"^\\*")]                  # Remove * comments
-  mod.countries = str_trim(str_split_fixed(mod.countries,"#",2)[,1])                # Remove # comments
-  set.begin = grep("map_n_iso3(n,iso3)*",tolower(mod.countries))[1]                 
-  set.end = set.begin + grep(";",mod.countries[set.begin:length(mod.countries)])[1]  
-  mod.countries = mod.countries[(set.begin+1):(set.end-2)]                          # Keep mapping data
-  mod.countries = str_split(mod.countries,"\\.")
-  mod.countries <- data.table(matrix(unlist(mod.countries), ncol=2, byrow=T))
-  setnames(mod.countries,c("n","ISO3"))
+  # Get the mapping from witchtools and convert to the format expected by the map code
+  mod.countries <- as.data.table(witchtools::region_mappings[[reg_id_map]])
+  setnames(mod.countries, c("iso3", reg_id_map), c("ISO3", "n"))
   # create mod.countries to map regions
   #add for displaying center
   mod.countries$center <- (mod.countries$ISO3%in%c("USA","BRA","CAN","AUS","NER","SAU","FRA","POL","RUS","AFG","IND","CHN","IDN"))
@@ -214,15 +195,22 @@ map_simple <- function(data, yearmap=2100, title="", scenplot=scenlist, legend_t
   world <- ne_countries(scale = "medium", returnclass = "sf")
   #add geometry
   world <- suppressWarnings(cbind(world, sf::st_coordinates(sf::st_centroid(world$geometry))))
-  #get model iso3 mapping
-  mod.countries = readLines(file.path(model_dir, paste0("data_", reg_id, "/regions.inc")))
-  mod.countries = mod.countries[mod.countries != ""]                     # Remove empty lines
-  mod.countries = mod.countries[!str_detect(mod.countries, "^\\*")]      # Remove * comments
-  mod.countries = str_trim(str_split_fixed(mod.countries, "#", 2)[, 1])  # Remove # comments
-  mod.countries = mod.countries[(grep("map_n_iso3(n,iso3)*", tolower(mod.countries))[1] + 1):(grep("map_n_iso3(n,iso3)*", tolower(mod.countries))[1] + grep(";", mod.countries[grep("map_n_iso3(n,iso3)*", tolower(mod.countries))[1]:length(mod.countries)])[1] -2)]                            # Keep mapping data
-  mod.countries = str_split(mod.countries, "\\.")
-  mod.countries <- data.table(matrix(unlist(mod.countries), ncol = 2, byrow = T))
-  setnames(mod.countries, c("n", "iso_a3"))
+
+  # Get region mapping from witchtools
+  if(!requireNamespace("witchtools", quietly = TRUE)){
+    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: remotes::install_github('witch-team/witchtools')")
+    return(invisible(NULL))
+  }
+
+  if(!(reg_id %in% names(witchtools::region_mappings))){
+    warning(sprintf("Cannot create map: Region mapping '%s' not found in witchtools::region_mappings.\nAvailable mappings: %s",
+                    reg_id, paste(names(witchtools::region_mappings), collapse=", ")))
+    return(invisible(NULL))
+  }
+
+  # Get the mapping from witchtools and convert to the format expected by the map code
+  mod.countries <- as.data.table(witchtools::region_mappings[[reg_id]])
+  setnames(mod.countries, c("iso3", reg_id), c("iso_a3", "n"))
   #Add data to iso3 list
   data <- data %>% filter(t == yeartot(yearmap) & file %in% scenplot)
   data <- suppressMessages(data %>% full_join(mod.countries, by = "n", relationship = "many-to-many"))
@@ -244,15 +232,22 @@ plot_map_region_definition <- function(regional_focus="World") {
   world <- ne_countries(scale = "medium", returnclass = "sf")
   #add geometry
   world <- suppressWarnings(cbind(world, sf::st_coordinates(sf::st_centroid(world$geometry))))
-  #get model iso3 mapping
-  mod.countries = readLines(file.path(model_dir, paste0("data_", reg_id, "/regions.inc")))
-  mod.countries = mod.countries[mod.countries != ""]                     # Remove empty lines
-  mod.countries = mod.countries[!str_detect(mod.countries, "^\\*")]      # Remove * comments
-  mod.countries = str_trim(str_split_fixed(mod.countries, "#", 2)[, 1])  # Remove # comments
-  mod.countries = mod.countries[(grep("map_n_iso3(n,iso3)*", tolower(mod.countries))[1] + 1):(grep("map_n_iso3(n,iso3)*", tolower(mod.countries))[1] + grep(";", mod.countries[grep("map_n_iso3(n,iso3)*", tolower(mod.countries))[1]:length(mod.countries)])[1] -2)]                            # Keep mapping data
-  mod.countries = str_split(mod.countries, "\\.")
-  mod.countries <- data.table(matrix(unlist(mod.countries), ncol = 2, byrow = T))
-  setnames(mod.countries, c("n", "iso_a3"))
+
+  # Get region mapping from witchtools
+  if(!requireNamespace("witchtools", quietly = TRUE)){
+    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: remotes::install_github('witch-team/witchtools')")
+    return(invisible(NULL))
+  }
+
+  if(!(reg_id %in% names(witchtools::region_mappings))){
+    warning(sprintf("Cannot create map: Region mapping '%s' not found in witchtools::region_mappings.\nAvailable mappings: %s",
+                    reg_id, paste(names(witchtools::region_mappings), collapse=", ")))
+    return(invisible(NULL))
+  }
+
+  # Get the mapping from witchtools and convert to the format expected by the map code
+  mod.countries <- as.data.table(witchtools::region_mappings[[reg_id]])
+  setnames(mod.countries, c("iso3", reg_id), c("iso_a3", "n"))
   p_map <- ggplot(data = mod.countries %>% full_join(world) %>% filter(!is.na(n) & !is.na(iso_a3))) + geom_sf(aes(fill = n, geometry = geometry)) +  scale_fill_manual(values = region_palette) + xlab("") + ylab("")  + ggtitle(str_glue("Regional aggregation: {reg_id}")) + theme_bw() + theme(strip.background = element_rect(fill = "white"), legend.position="bottom") + guides(fill = guide_legend(nrow = 3)) 
   if(regional_focus=="Europe") p_map <- p_map + coord_sf(xlim = c(-10,33), ylim = c(36,73), expand = FALSE)
   saveplot(str_glue("region_definition_{reg_id}"), width = 12, height = 8, add_title = F)

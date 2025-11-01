@@ -9,13 +9,11 @@
 #' @return NULL (modifies global environment)
 #' @keywords internal
 .initialize_witchplot_session <- function() {
-  ## Set default options ##
-  deploy_online <<- FALSE  # Save graphs if not deployed online
-  figure_format <<- "png"
-  add_historical <<- TRUE  # Add historical data where available
-  ggplot2::theme_set(ggplot2::theme_bw())  # Set default theme
-  write_plotdata_csv <<- FALSE  # Save plot data as CSV
-  varlist_combine_old_new_j <<- c("Q_EN", "K_EN", "I_EN", "Q_IN")  # Variables to combine old/new j technologies
+  ## Set default theme ##
+  ggplot2::theme_set(ggplot2::theme_bw())
+
+  ## Set variables for combining old/new j technologies ##
+  varlist_combine_old_new_j <<- c("Q_EN", "K_EN", "I_EN", "Q_IN")
 
   # Set default time parameters
   if(!exists("year0", envir=.GlobalEnv)) {
@@ -29,44 +27,31 @@
     assign("yearmax", getOption("yearmax", 2100), envir=.GlobalEnv)
   }
 
-  ## Validate and normalize model_dir ##
-  if(exists("model_dir", envir=.GlobalEnv) && !is.null(get("model_dir", envir=.GlobalEnv))) {
-    model_dir <- get("model_dir", envir=.GlobalEnv)
-
-    if(!dir.exists(model_dir)) {
-      warning(sprintf("model_dir does not exist: '%s'\nSkipping model directory initialization. Historical data and region mappings will not be available.", model_dir))
-      assign("model_dir", NULL, envir=.GlobalEnv)
-    } else {
-      assign("model_dir", normalizePath(model_dir), envir=.GlobalEnv)
-    }
-  }
-
   ## Set up graphs directory ##
-  # Always use first fullpathdir for graphs
-  if(exists("fullpathdir", envir=.GlobalEnv) && !is.null(get("fullpathdir", envir=.GlobalEnv))) {
-    fullpathdir <- get("fullpathdir", envir=.GlobalEnv)
+  # Always use first results_dir for graphs
+  if(exists("results_dir", envir=.GlobalEnv) && !is.null(get("results_dir", envir=.GlobalEnv))) {
+    results_dir <- get("results_dir", envir=.GlobalEnv)
 
-    # Always use first fullpathdir for graphs
-    graphdir_val <- file.path(fullpathdir[1], "graphs")
+    # Always use first results_dir for graphs
+    graphdir_val <- file.path(results_dir[1], "graphs")
     assign("graphdir", graphdir_val, envir=.GlobalEnv)
 
     # Validate that directory exists
-    if(any(!dir.exists(fullpathdir))) {
+    if(any(!dir.exists(results_dir))) {
       stop(sprintf("Results directory does not exist: '%s'\nPlease check the results_dir parameter.",
-                   fullpathdir[!dir.exists(fullpathdir)][1]))
+                   results_dir[!dir.exists(results_dir)][1]))
     }
   } else {
     assign("graphdir", NULL, envir=.GlobalEnv)
   }
 
   # Load GDX files if applicable (only for GDX-based models, not IIASADB)
-  if (exists("fullpathdir", envir = .GlobalEnv) &&
-      !is.null(get("fullpathdir", envir = .GlobalEnv)) &&
+  if (exists("results_dir", envir = .GlobalEnv) &&
+      !is.null(get("results_dir", envir = .GlobalEnv)) &&
       !exists("iamc_filename", envir = .GlobalEnv) &&
       !exists("iamc_databasename", envir = .GlobalEnv)) {
 
-    fullpathdir <- get("fullpathdir", envir = .GlobalEnv)
-    model_dir <- get("model_dir", envir = .GlobalEnv)
+    results_dir <- get("results_dir", envir = .GlobalEnv)
 
     # Get parameters
     restrict_files <- if (exists("restrict_files", envir = .GlobalEnv)) {
@@ -98,9 +83,10 @@
     }
 
     # Load GDX session data using new clean approach
+    # Use only first directory for discovering files and metadata
+    # The actual loading from all directories happens in get_witch()
     session_data <- .load_gdx_session(
-      results_dir = fullpathdir[1],
-      model_dir = model_dir,
+      results_dir = results_dir[1],
       restrict_files = restrict_files,
       exclude_files = exclude_files,
       removepattern = removepattern,

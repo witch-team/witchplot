@@ -5,7 +5,7 @@
 
 #only if deployed online
 deploy_online <<- F
-if(!exists("model_dir")){
+if(!exists("results_dir")){
   load(file="allvariables.Rdata", envir = .GlobalEnv)
   #Install and load packages
   require_package <- function(package){
@@ -31,13 +31,9 @@ sidebar_ui <- sidebarPanel(
               value = c(1990,2100),
               step = 5),
   div(style="display:inline-block",
-      checkboxInput("time_filter", 
-                    "Time filter", 
-                    value = TRUE)),
-  div(style="display:inline-block",
-      checkboxInput("add_historical", 
-                    "Historical", 
-                    value = TRUE)),
+      checkboxInput("add_historical",
+                    "Show historical",
+                    value = if(exists("add_historical")) add_historical else TRUE)),
   div(style="display:inline-block",
       checkboxInput("ylim_zero",
                     "ymin=0",

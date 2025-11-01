@@ -5,9 +5,9 @@ get_witch <- function(variable_name,
                       postprocesssuffix = NULL,
                       skip_restrict_regions = FALSE){
   # Get add_historical option from global variable or options
-  add_historical <- if(exists("historical", envir=.GlobalEnv)) get("historical", envir=.GlobalEnv) else getOption("add_historical", TRUE)
+  add_historical <- if(exists("add_historical", envir=.GlobalEnv)) get("add_historical", envir=.GlobalEnv) else getOption("add_historical", TRUE)
 
-  for (current_pathdir in fullpathdir){
+  for (current_pathdir in results_dir){
     for (file in filelist){
       if(file.exists(file.path(current_pathdir, paste0(file,".gdx")))){
         mygdx <- gdxtools::gdx(file.path(current_pathdir, paste0(file,".gdx")))
@@ -33,7 +33,7 @@ get_witch <- function(variable_name,
               if(flexible_timestep) if("tlen" %in% gdxtools::all_items(mygdx)$parameters) tempdata <- tempdata %>% left_join(mygdx["tlen"] %>% rename(tlen=value), by = "t") else tempdata$tlen = tstep
             }
           }
-          if(length(fullpathdir)>=1){
+          if(length(results_dir)>=1){
             tempdata$pathdir <- basename(current_pathdir)
           }
           if(!exists("allfilesdata")) {
@@ -82,11 +82,18 @@ get_witch <- function(variable_name,
       }}
     
     #try adding historical values
-    if(add_historical & !(is.element(variable_name, gdxtools::all_items(mygdx)$sets))) {
-      allfilesdata <- add_historical_values(allfilesdata,
-                                            varname = variable_name,
-                                            scenplot = scenplot,
-                                            verbose = FALSE)}
+    if(add_historical) {
+      # Check if variable_name is a set (sets should not get historical data)
+      is_set <- FALSE
+      if(exists("mygdx")) {
+        is_set <- is.element(variable_name, gdxtools::all_items(mygdx)$sets)
+      }
+      if(!is_set) {
+        allfilesdata <- add_historical_values(allfilesdata,
+                                              varname = variable_name,
+                                              verbose = FALSE)
+      }
+    }
     # also save as data.table
     allfilesdata <- data.table::as.data.table(allfilesdata)
     #in case nice_region_names exist map region names for those with a nice name

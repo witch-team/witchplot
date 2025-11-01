@@ -5,7 +5,8 @@ if(deploy_online){
   suppressPackageStartupMessages(require(tidyverse))
   require(plotly)
   require(shinyWidgets)
-  add_historical_values <- function(x, varname, check_calibration, iiasadb, verbose){
+  add_historical_values <- function(x, varname, iiasadb, verbose){
+    # Always keep historical data sources separate (check_calibration is always TRUE)
     x <- rbind(x, iiasadb_historical %>% filter(VARIABLE==varname))
     return(x)
     }
@@ -79,11 +80,9 @@ shinyServer(function(input, output, session) {
       ylim_zero <- input$ylim_zero
       variable <- input$variable_selected
       if(is.null(variable)) variable <- variables[1]
-      #get data
-      allfilesdata <- subset(iiasadb_snapshot, VARIABLE==variable)
+      #get data using new get_iiasadb() function (similar to get_witch())
+      allfilesdata <- get_iiasadb(variable, add_historical = if(exists("add_historical")) add_historical else FALSE)
       unitplot <- unique(allfilesdata$UNIT)[1]
-      #add historical data
-      allfilesdata <- add_historical_values(allfilesdata, varname = variable, iiasadb = T, verbose = F)
 
       #get input from sliders/buttons
       yearlim <- input$yearlim
@@ -91,31 +90,61 @@ shinyServer(function(input, output, session) {
       models_selected <- input$models_selected
       #get all possible scenarios
       scenarios_selected <- input$scenarios_selected
-      #select scenarios
-      allfilesdata <- subset(allfilesdata, SCENARIO %in% c(scenarios_selected, "historical"))
-      allfilesdata <- subset(allfilesdata, !(MODEL %in% setdiff(models, models_selected)))
-      
+
+      #select scenarios - use data.frame indexing to preserve all columns
+      allfilesdata <- allfilesdata[allfilesdata$SCENARIO %in% c(scenarios_selected, "historical"), ]
+      allfilesdata <- allfilesdata[!(allfilesdata$MODEL %in% setdiff(models, models_selected)), ]
+
       #time frame
-      allfilesdata <- subset(allfilesdata, YEAR>=yearlim[1] & YEAR<=yearlim[2])
+      allfilesdata <- allfilesdata[allfilesdata$year>=yearlim[1] & allfilesdata$year<=yearlim[2], ]
       #clean data
-      allfilesdata <- subset(allfilesdata, !is.na(value))
+      allfilesdata <- allfilesdata[!is.na(allfilesdata$value), ]
      
       if(is.null(regions)) regions <- "World"
-      
+      # Convert regions to lowercase for matching (since n column is lowercase)
+      regions_lower <- tolower(regions)
+
       if(regions[1]=="World" | length(regions)==1){#if only World is displayed or only one region, show files with colors
+        # Filter data first
+        plot_data <- allfilesdata[allfilesdata$n %in% regions_lower & allfilesdata$SCENARIO!="historical", ]
+        hist_data <- allfilesdata[allfilesdata$n %in% regions_lower & allfilesdata$SCENARIO=="historical", ]
+
         if(length(models_selected)==1){
-          p <- ggplot(subset(allfilesdata, REGION %in% regions & SCENARIO!="historical"),aes(YEAR,value,colour=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("") + ylab(unitplot) + xlim(yearlim[1],yearlim[2])
+          # Single model: use color for scenarios
+          p <- ggplot(plot_data, aes(x=year, y=value, colour=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("") + ylab(unitplot) + xlim(yearlim[1],yearlim[2])
+          # Historical data in different colors (one per data source/MODEL)
+          if(nrow(hist_data) > 0) {
+            p <- p + geom_line(data=hist_data, aes(x=year, y=value, colour=MODEL), stat="identity", linewidth=1.0)
+          }
         }else{
-          p <- ggplot(subset(allfilesdata, REGION %in% regions & SCENARIO!="historical"),aes(YEAR,value,colour=MODEL, linetype=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("") + ylab(unitplot) + xlim(yearlim[1],yearlim[2])
+          # Multiple models: use color for MODEL, linetype for SCENARIO
+          p <- ggplot(plot_data, aes(x=year, y=value, colour=MODEL, linetype=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("") + ylab(unitplot) + xlim(yearlim[1],yearlim[2])
+          # Historical data in different colors (one per MODEL)
+          if(nrow(hist_data) > 0) {
+            p <- p + geom_line(data=hist_data, aes(x=year, y=value, colour=MODEL), stat="identity", linewidth=1.0)
+          }
         }
-        p <- p + geom_line(data=subset(allfilesdata, REGION %in% regions & SCENARIO=="historical"), aes(YEAR,value, linetype=MODEL), stat="identity", linewidth=1.0, colour = "black")
         if(ylim_zero) p <- p + ylim(0, NA)
+        # Add faceting by pathdir if multiple directories
+        if(exists("results_dir") && length(results_dir) > 1 && "PATHDIR" %in% names(allfilesdata)) {
+          p <- p + facet_grid(. ~ PATHDIR)
+        }
         #legends:
         p <- p + theme(text = element_text(size=16), legend.position="bottom", legend.direction = "horizontal", legend.box = "vertical", legend.key = element_rect(colour = NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL), linetype=guide_legend(title=NULL))
        }else{
-        p <- ggplot(subset(allfilesdata, REGION %in% regions & SCENARIO!="historical"),aes(YEAR,value,colour=interaction(REGION, MODEL), linetype=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unitplot) + xlim(yearlim[1],yearlim[2]) + facet_grid(. ~ REGION)
-        p <- p + geom_line(data=subset(allfilesdata, REGION %in% regions & SCENARIO=="historical"), aes(YEAR,value,colour=REGION, linetype=MODEL), stat="identity", linewidth=1.0)
+        # Multiple regions: filter data first
+        plot_data <- allfilesdata[allfilesdata$n %in% regions_lower & allfilesdata$SCENARIO!="historical", ]
+        hist_data <- allfilesdata[allfilesdata$n %in% regions_lower & allfilesdata$SCENARIO=="historical", ]
+
+        p <- ggplot(plot_data, aes(x=year, y=value, colour=interaction(n, MODEL), linetype=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unitplot) + xlim(yearlim[1],yearlim[2]) + facet_grid(. ~ n)
+        if(nrow(hist_data) > 0) {
+          p <- p + geom_line(data=hist_data, aes(x=year, y=value, colour=n, linetype=MODEL), stat="identity", linewidth=1.0)
+        }
         if(ylim_zero) p <- p + ylim(0, NA)
+        # Add additional faceting by pathdir if multiple directories
+        if(exists("results_dir") && length(results_dir) > 1 && "PATHDIR" %in% names(allfilesdata)) {
+          p <- p + facet_grid(PATHDIR ~ n)
+        }
         #legends:
         p <- p + theme(text = element_text(size=16), legend.position="bottom", legend.direction = "horizontal", legend.box = "vertical", legend.key = element_rect(colour = NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow = 2), linetype=guide_legend(title=NULL))
       }
@@ -197,16 +226,16 @@ shinyServer(function(input, output, session) {
         group_by(VARIABLE, MODEL) %>%
         summarise(Count = n(), .groups = 'drop') %>%
         pivot_wider(names_from = MODEL, values_from = Count, values_fill = 0) %>%
-        mutate(num_models = rowSums(select(., -VARIABLE) > 0),
+        mutate(num_models = rowSums(select(., -all_of("VARIABLE")) > 0),
                single_model = case_when(
                  num_models == 1 ~ {
-                   model_cols <- select(., -VARIABLE, -num_models)
+                   model_cols <- select(., -all_of(c("VARIABLE", "num_models")))
                    names(model_cols)[max.col(model_cols)]
                  },
                  TRUE ~ ""
                )) %>%
         arrange(desc(num_models), single_model, VARIABLE) %>%
-        select(-num_models, -single_model)
+        select(-all_of(c("num_models", "single_model")))
 
       DT::datatable(
         coverage_data,

@@ -12,7 +12,7 @@ sidebar_ui <- sidebarPanel(
               max = 2300,
               value = c(1990,2100),
               step = 5),
-  div(style="display:inline-block",checkboxInput("add_historical", "Add historical", value = T)),
+  div(style="display:inline-block",checkboxInput("add_historical", "Show historical", value = if(exists("add_historical")) add_historical else TRUE)),
   div(style="display:inline-block",
       checkboxInput("ylim_zero",
                     "ymin=0",

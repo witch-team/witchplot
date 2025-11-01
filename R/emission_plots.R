@@ -90,7 +90,7 @@ Mitigation_Sources <- function(regions=witch_regions, scenario_stringency_order,
   MITIGATION_SOURCES <- subset(MITIGATION_SOURCES, file!=scenario_stringency_order[1])
   MITIGATION_SOURCES <- MITIGATION_SOURCES[order(match(MITIGATION_SOURCES$file,scenario_stringency_order)),]
   MITIGATION_SOURCES <- MITIGATION_SOURCES[order(match(MITIGATION_SOURCES$file,scenario_stringency_order),match(MITIGATION_SOURCES$source,emi_sources)) ,]
-  MITIGATION_SOURCES$pathdir <- basename(fullpathdir[1]) #to avoid issues when saving data as EXCEL
+  MITIGATION_SOURCES$pathdir <- basename(results_dir[1]) #to avoid issues when saving data as EXCEL
   #to set minimal negative vales to zero
   MITIGATION_SOURCES$value <- pmax(MITIGATION_SOURCES$value, 0)
   #Stacked Regions Plot

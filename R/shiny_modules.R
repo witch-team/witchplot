@@ -3,16 +3,20 @@ additional_sets <- setdiff(names(afd), c(file_group_columns, "pathdir", "t", "n"
 if(length(additional_sets)==0) {
 list(additional_set_id="na", set_elements="na", additional_set_id2="na", set_elements2="na")
 } else if(length(additional_sets)==1) {
+# Get sorted elements (keep alphabetical order)
+elements <- sort(unique(tolower(afd[[additional_sets[1]]])))
 list(
 additional_set_id=additional_sets[1],
-set_elements=sort(unique(tolower(afd[[additional_sets[1]]]))),
+set_elements=elements,
 additional_set_id2="na",
 set_elements2="na"
 )
 } else {
+# Get sorted elements for first set (keep alphabetical order)
+elements <- sort(unique(tolower(afd[[additional_sets[1]]])))
 list(
 additional_set_id=additional_sets[1],
-set_elements=sort(unique(tolower(afd[[additional_sets[1]]]))),
+set_elements=elements,
 additional_set_id2=additional_sets[2],
 set_elements2=sort(unique(tolower(afd[[additional_sets[2]]])))
 )
@@ -101,7 +105,7 @@ afd$value <- afd$value * unit_conv$convert
 afd$year <- ttoyear(afd$t)
 list(data=afd, unit_conv=unit_conv)
 }
-create_gdx_plot <- function(afd, variable, unit_conv, regions, yearlim, ylim_zero, region_palette, fullpathdir) {
+create_gdx_plot <- function(afd, variable, unit_conv, regions, yearlim, ylim_zero, region_palette, results_dir, show_historical=TRUE) {
 if(nrow(afd)==0) return(NULL)
 # Remove any rows with NA or infinite values in year or value
 afd <- subset(afd, !is.na(year) & !is.infinite(year) & !is.na(value) & !is.infinite(value))
@@ -124,8 +128,8 @@ ggplot2::theme(text=ggplot2::element_text(size=16),
                legend.direction="horizontal",
                legend.title=ggplot2::element_blank())
 if(ylim_zero) p <- p + ggplot2::geom_hline(yintercept=0, alpha=0.5)
-# Add historical data if available
-if(nrow(hist_data)>0) {
+# Add historical data if available and show_historical is TRUE
+if(show_historical && nrow(hist_data)>0) {
 p <- p + ggplot2::geom_line(data=hist_data, ggplot2::aes(x=year, y=value, color=file), linewidth=1.0)
 }
 } else {
@@ -138,11 +142,11 @@ ggplot2::theme(text=ggplot2::element_text(size=16),
                legend.direction="horizontal",
                legend.title=ggplot2::element_blank())
 if(ylim_zero) p <- p + ggplot2::geom_hline(yintercept=0, alpha=0.5)
-# Add historical data if available
-if(nrow(hist_data)>0) {
+# Add historical data if available and show_historical is TRUE
+if(show_historical && nrow(hist_data)>0) {
 p <- p + ggplot2::geom_line(data=hist_data, ggplot2::aes(x=year, y=value, color=n, group=interaction(n, file)), linewidth=1.0)
 }
 }
-if(length(fullpathdir)!=1) p <- p + ggplot2::facet_grid(. ~ pathdir)
+if(length(results_dir)!=1) p <- p + ggplot2::facet_grid(. ~ pathdir)
 p
 }

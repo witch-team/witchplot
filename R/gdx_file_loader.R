@@ -11,18 +11,18 @@
 #' @keywords internal
 .load_gdx_files <- function() {
   # Check if we should load GDX files
-  if(!exists("fullpathdir", envir=.GlobalEnv) ||
-     is.null(get("fullpathdir", envir=.GlobalEnv)) ||
+  if(!exists("results_dir", envir=.GlobalEnv) ||
+     is.null(get("results_dir", envir=.GlobalEnv)) ||
      exists("iamc_filename", envir=.GlobalEnv) ||
      exists("iamc_databasename", envir=.GlobalEnv)) {
     return(invisible(NULL))
   }
 
-  fullpathdir <- get("fullpathdir", envir=.GlobalEnv)
+  results_dir <- get("results_dir", envir=.GlobalEnv)
 
   # Discover GDX files
   filelist <- gsub(".gdx", "", list.files(
-    path = fullpathdir[1],
+    path = results_dir[1],
     full.names = FALSE,
     pattern = "*.gdx",
     recursive = FALSE
@@ -99,7 +99,7 @@
       exists("batch_extract", where = asNamespace("gdxtools"), mode = "function")) {
     tlen_values <- suppressWarnings(gdxtools::batch_extract(
       "tlen",
-      files = file.path(fullpathdir, paste0(filelist, ".gdx"))
+      files = file.path(results_dir, paste0(filelist, ".gdx"))
     ))
     flexible_timestep <- length(unique(tlen_values$tlen$value)) > 1
   } else {
@@ -125,7 +125,7 @@
   }
 
   # Get variable descriptions from first file
-  mygdx <- gdxtools::gdx(file.path(fullpathdir[1], paste0(filelist[1], ".gdx")))
+  mygdx <- gdxtools::gdx(file.path(results_dir[1], paste0(filelist[1], ".gdx")))
   all_var_descriptions <- rbind(
     data.frame(name = mygdx$variables$name, description = mygdx$variables$text),
     data.frame(name = mygdx$parameters$name, description = mygdx$parameters$text)
@@ -133,7 +133,7 @@
   assign("all_var_descriptions", all_var_descriptions, envir=.GlobalEnv)
 
   # Set up region information
-  .setup_region_info(filelist, fullpathdir)
+  .setup_region_info(filelist, results_dir)
 
   # filelist already assigned earlier
   invisible(NULL)
@@ -142,9 +142,9 @@
 #' Setup region information
 #'
 #' @param filelist Character vector of GDX filenames
-#' @param fullpathdir Path to results directory
+#' @param results_dir Path to results directory
 #' @keywords internal
-.setup_region_info <- function(filelist, fullpathdir) {
+.setup_region_info <- function(filelist, results_dir) {
   # Get region ID
   if(!exists("reg_id", envir=.GlobalEnv)) {
     conf <- get_witch("conf")
@@ -155,7 +155,7 @@
       print("Be careful: not all results files were run with the same regional aggregation!")
     }
     scenlist <- get("scenlist", envir=.GlobalEnv)
-    reg_id <- subset(conf, file == scenlist[1] & pathdir == basename(fullpathdir[1]) & V1 == "regions")$V2
+    reg_id <- subset(conf, file == scenlist[1] & pathdir == basename(results_dir[1]) & V1 == "regions")$V2
     assign("reg_id", reg_id, envir=.GlobalEnv)
   } else {
     reg_id <- get("reg_id", envir=.GlobalEnv)
@@ -164,7 +164,7 @@
   # Get regions list
   if (requireNamespace("gdxtools", quietly = TRUE) &&
       exists("batch_extract", where = asNamespace("gdxtools"), mode = "function")) {
-    n <- suppressWarnings(gdxtools::batch_extract("n", files = file.path(fullpathdir, paste0(filelist, ".gdx"))))
+    n <- suppressWarnings(gdxtools::batch_extract("n", files = file.path(results_dir, paste0(filelist, ".gdx"))))
     if(is.null(n$n)) {
       witch_regions <- "World"
     } else {
@@ -173,7 +173,7 @@
   } else {
     # Fallback: try to get regions from first file
     tryCatch({
-      first_gdx <- gdxtools::gdx(file.path(fullpathdir[1], paste0(filelist[1], ".gdx")))
+      first_gdx <- gdxtools::gdx(file.path(results_dir[1], paste0(filelist[1], ".gdx")))
       if("n" %in% names(first_gdx$sets)) {
         witch_regions <- first_gdx$sets$n$V1
       } else {
@@ -193,28 +193,6 @@
   display_regions <- witch_regions
   assign("display_regions", display_regions, envir=.GlobalEnv)
   assign("witch_regions", witch_regions, envir=.GlobalEnv)
-
-  # Check for historical data directory - try to find actual directory
-  model_dir <- get("model_dir", envir=.GlobalEnv)
-  if(!is.null(model_dir)) {
-    data_dir <- file.path(model_dir, paste0("data_", reg_id))
-    if(!dir.exists(data_dir)) {
-      # Try to find a directory that starts with data_<reg_id>
-      potential_dirs <- list.dirs(model_dir, full.names = FALSE, recursive = FALSE)
-      matching_dirs <- grep(paste0("^data_", reg_id), potential_dirs, value = TRUE)
-      if (length(matching_dirs) > 0) {
-        message("Found data directory: ", matching_dirs[1])
-        # Update reg_id to match actual directory
-        reg_id <- gsub("^data_", "", matching_dirs[1])
-        assign("reg_id", reg_id, envir=.GlobalEnv)
-      } else {
-        warning(sprintf(
-          "Historical data directory not found: '%s'\nHistorical data features will be disabled.",
-          data_dir
-        ))
-      }
-    }
-  }
 
   # Set up color palettes
   region_palette <- get_region_palette(witch_regions, reg_id)

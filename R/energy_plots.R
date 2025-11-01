@@ -1,7 +1,7 @@
 
 
 Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin, yearmax), plot_type="area", scenplot=scenlist, plot_name="Primary Energy Mix", add_total_tpes = F){
-  if(length(fullpathdir)!=1){stop("PES mix REGIONAL only for one directory at a time!"); return(invisible(NULL))}
+  if(length(results_dir)!=1){stop("PES mix REGIONAL only for one directory at a time!"); return(invisible(NULL))}
     Q_FUEL <- get_witch("Q_FUEL"); Q_FUEL_pes <- Q_FUEL %>% mutate(value=value*0.0036) %>% rename(j=fuel)
     #if fuel==uranium multiply by the efficiency of 0.3333
     Q_FUEL_pes <- Q_FUEL_pes %>% mutate(value=ifelse(j=="uranium", value*0.3333, value))
@@ -57,7 +57,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
 
 
 Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(yearmin, yearmax), plot_type="area", plot_name="Electricity Mix", scenplot=scenlist, add_total_elec=F){
-  if(length(fullpathdir)!=1){stop("Electricity mix only for one directory at a time!"); return(invisible(NULL))}
+  if(length(results_dir)!=1){stop("Electricity mix only for one directory at a time!"); return(invisible(NULL))}
     Q_IN <- get_witch("Q_IN"); Q_IN_el <- Q_IN %>% mutate(value=value * 0.0036)
     csi_el <- get_witch("csi") %>% rename(csi=value) %>% mutate(jfed=gsub("_new", "", jfed)) %>% filter(jfed %in% c("eloil", "elpb", "elpc", "elgastr", "elbigcc", "elcigcc", "elgasccs", "elpc_ccs", "elpc_oxy"))
     JFED <- merge(Q_IN_el, csi_el, by = c("t", "n", file_group_columns, "pathdir", "fuel", "jfed"), all=TRUE)
@@ -203,7 +203,7 @@ Investment_Plot <- function(regions=witch_regions, scenplot=scenlist, match_hist
 
 
 Power_capacity <- function(regions="World", years=seq(yearmin, yearmax), plot_name="Power Capacity", scenplot=scenlist){
-  if(length(fullpathdir)!=1){print("Electricity mix only for one directory at a time!")}else{
+  if(length(results_dir)!=1){print("Electricity mix only for one directory at a time!")}else{
     K_EN <- get_witch("K_EN")
     K_EN <- K_EN %>% filter(jreal %in% c("eloil", "elpb", "elpc", "elgastr", "elbigcc", "elcigcc", "elgasccs", "elpc_ccs", "elpv", "elcsp", "elnuclear", "elwindon", "elwindoff", "elhydro"))
     K_EN <- K_EN %>% mutate(category = dplyr::recode(jreal, !!!c("elpc" = "Coal w/o CCS", "elpc_ccs" = "Coal w/ CCS", "elgastr" = "Gas w/o CCS", "elgasccs" = "Gas w/ CCS", "eloil" = "Oil", "elnuclear" = "Nuclear", "elpb" = "Biomass w/o CCS", "elbigcc" = "Biomass w/ CCS", "elhydro" = "Hydro", "elwindon" = "Wind Onshore", "elwindoff" = "Wind Offshore", "elpv" = "Solar PV", "elcsp" = "Solar CSP")))

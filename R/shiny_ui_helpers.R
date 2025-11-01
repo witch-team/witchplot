@@ -16,10 +16,10 @@ create_region_selector <- function(witch_regions, include_aggregates=c("World", 
   }
   selectInput(inputId="regions_selected", label="Regions:", regions_for_selector, size=max(10, length(regions_for_selector)), selectize=FALSE, multiple=TRUE, selected=default_region)
 }
-get_gdx_variable_list <- function(fullpathdir, filelist, filter_time_dependent=FALSE) {
+get_gdx_variable_list <- function(results_dir, filelist, filter_time_dependent=FALSE) {
   list_of_variables <- NULL
   for(f in filelist) {
-    .gdx <- gdx(file.path(fullpathdir[1], paste0(f, ".gdx")))
+    .gdx <- gdx(file.path(results_dir[1], paste0(f, ".gdx")))
     for(item in c("variables", "parameters")) {
       info_item <- .gdx[[item]]
       info_item <- info_item[info_item$dim<=4,]
@@ -34,10 +34,10 @@ get_gdx_variable_list <- function(fullpathdir, filelist, filter_time_dependent=F
   }
   list_of_variables
 }
-get_gdx_variable_list_simple <- function(fullpathdir, filelist) {
+get_gdx_variable_list_simple <- function(results_dir, filelist) {
   list_of_variables <- NULL
   for(f in filelist) {
-    .gdx <- gdx(file.path(fullpathdir[1], paste0(f, ".gdx")))
+    .gdx <- gdx(file.path(results_dir[1], paste0(f, ".gdx")))
     list_of_variables <- c(list_of_variables, all_items(.gdx)$variables)
     list_of_variables <- c(list_of_variables, all_items(.gdx)$parameters)
   }

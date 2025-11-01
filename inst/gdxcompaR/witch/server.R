@@ -7,7 +7,7 @@ require(shinyWidgets)
 add_historical_values <- function(x, varname, iiasadb, verbose){return(x)}
 get_witch <- function(variable, field){return(allvariables[[variable]])}
 }
-list_of_variables <- get_gdx_variable_list(fullpathdir, filelist, filter_time_dependent=FALSE)
+list_of_variables <- get_gdx_variable_list(results_dir, filelist, filter_time_dependent=FALSE)
 output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
 output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE)})
 output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")})
@@ -19,7 +19,7 @@ print("Current plot saved in subdirectory 'graphs'")
 saveplot(variable, width=14, height=7)
 })
 output$gdxompaRplot <- renderPlot({
-assign("historical", input$add_historical, envir=.GlobalEnv)
+show_historical <- input$add_historical  # Checkbox controls plot visibility
 ylim_zero <- input$ylim_zero
 field_show <- input$field
 variable <- input$variable_selected
@@ -31,18 +31,19 @@ output$choose_additional_set <- renderUI({
 variable <- variable_input()
 if(is.null(variable)) variable <- list_of_variables[1]
 sel <- input$additional_set_id_selected
-if(is.null(sel)){
-if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
+# If no selection OR selection not valid for current variable, use first element
+if(is.null(sel) || !all(sel %in% set_info$set_elements)){
+sel <- set_info$set_elements[1]
 }
 size_elements <- min(length(set_info$set_elements), 5)
-selectInput(inputId="additional_set_id_selected", label="Indices 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
 })
 output$choose_additional_set2 <- renderUI({
 variable <- variable_input()
 if(is.null(variable)) variable <- list_of_variables[1]
 sel2 <- input$additional_set_id_selected2
 size_elements2 <- min(length(set_info$set_elements2), 5)
-selectInput(inputId="additional_set_id_selected2", label="Indices 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected
@@ -54,8 +55,8 @@ if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_ele
 if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
 if(is.null(additional_set_selected2)) additional_set_selected2 <- set_info$set_elements2[1]
 if((set_info$additional_set_id2!="na" & additional_set_selected2[1]=="na") | !(additional_set_selected2[1] %in% set_info$set_elements2)) additional_set_selected2 <- set_info$set_elements2[1]
-plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate_flag=FALSE, time_filter=input$time_filter, compute_aggregates=TRUE, verbose=verbose)
-p <- create_gdx_plot(plot_data$data, variable, plot_data$unit_conv, regions, yearlim, ylim_zero, region_palette, fullpathdir)
+plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate_flag=FALSE, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
+p <- create_gdx_plot(plot_data$data, variable, plot_data$unit_conv, regions, yearlim, ylim_zero, region_palette, results_dir, show_historical)
 if(!is.null(p)) print(p)
 })
 

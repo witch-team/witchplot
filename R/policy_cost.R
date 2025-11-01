@@ -20,7 +20,7 @@ Policy_Cost <- function(discount_rate=5, tmin=4, tmax=20, bauscen="ssp2_bau", re
   #PC over time plot (NOT discounted!)
   PC_annual_relative <- subset(GDP, t<=tmax&t>=tmin); PC_annual_relative$rel_cost <- PC_annual_relative$"GDP Loss"/PC_annual_relative$"bau";
   p <- ggplot(subset(PC_annual_relative, n %in% regions & file!=bauscen)) + geom_line(aes(ttoyear(t), rel_cost*100, color=file), show.legend = TRUE) +ylab(paste("% of", measure)) + xlab("") + theme(legend.position="bottom",legend.direction="horizontal") + guides(fill=guide_legend(title=NULL, nrow = 1))
-  if(length(fullpathdir) > 1){p <- p + facet_grid(. ~ pathdir)}
+  if(length(results_dir) > 1){p <- p + facet_grid(. ~ pathdir)}
   if(regions[1] != "World" & (length(regions)>1)){p <- p + facet_grid(. ~ n)}
   #now compute also discounted NPV value
   Policy_Cost <- GDP %>% filter(t<=tmax & t>=tmin) %>% group_by_at(c("n", file_group_columns, "pathdir")) %>% summarize(GDP_Loss_discounted=sum(GDP_Loss_discounted), GDP_MER_discounted=sum(GDP_MER_discounted))
@@ -29,7 +29,7 @@ Policy_Cost <- function(discount_rate=5, tmin=4, tmax=20, bauscen="ssp2_bau", re
   #Policy_Cost$PC <- pmax(Policy_Cost$PC, 0)
   assign("POLCOST", Policy_Cost, envir = .GlobalEnv) 
   p <- ggplot(subset(Policy_Cost, n %in% regions & file!=bauscen)) + geom_bar(position=position_dodge(), stat="identity",aes(file, PC, fill=file), show.legend = TRUE) +ylab(paste("% of", measure, "(NPV)")) + xlab("") + theme(legend.position="bottom",legend.direction="horizontal") + guides(fill=guide_legend(title=NULL, nrow = 1))
-  if(length(fullpathdir) > 1){p <- p + facet_grid(. ~ pathdir)}
+  if(length(results_dir) > 1){p <- p + facet_grid(. ~ pathdir)}
   if(regions[1] != "World"){p <- p + facet_grid(. ~ n)}
   if(show_numbers){p <- p + geom_text(data=subset(Policy_Cost, n %in% regions & file!=bauscen), aes(x=file, y=PC+0.1, label=paste0(round(PC, 1),"%")), size=3)}
   p <- p  + theme(axis.ticks = element_blank(), axis.text.x = element_blank())
@@ -121,7 +121,7 @@ Policy_Cost_Decomposition <- function(discount_rate=5, tmin=4, tmax=20, bauscen=
   POLCOSTDECOMP <- POLCOSTDECOMP %>% filter(file %in% scenplot)
   #Line plot
   p <- ggplot(POLCOSTDECOMP %>% filter(n %in% regions & t>= tmin & t <= tmax)) + geom_line(aes(ttoyear(t), 100*(value-value_bau)/gdp_bau, color=file), show.legend = TRUE) +ylab(paste("Change in % of", measure)) + xlab("") + theme(legend.position="bottom",legend.direction="horizontal") + guides(fill=guide_legend(title=NULL, nrow = 1)) + facet_grid(variable ~ n)
-  if(length(fullpathdir) > 1){p <- p + facet_grid(variable ~ pathdir)}
+  if(length(results_dir) > 1){p <- p + facet_grid(variable ~ pathdir)}
   #now aggregate to NPV discounted values (PC)
   DAM_DECOMP_NPV <- POLCOSTDECOMP %>% mutate(diff=(value-value_bau), diff_disc=diff*(1+discount_rate/100)^(-(ttoyear(t)-ttoyear(tmin))), gdp_disc=gdp_bau*(1+discount_rate/100)^(-(ttoyear(t)-ttoyear(tmin)))) %>% filter(t >= tmin & t <= tmax) %>% group_by_at(c(file_group_columns, "pathdir", "n", "variable")) %>% summarize(NPV=sum(diff_disc)/sum(gdp_disc))
   #keep only relevant data and good naming
@@ -134,7 +134,7 @@ Policy_Cost_Decomposition <- function(discount_rate=5, tmin=4, tmax=20, bauscen=
   assign("DAM_DECOMP_NPV", DAM_DECOMP_NPV, envir = .GlobalEnv) 
   #Bar chart
   p_bar <- ggplot(subset(DAM_DECOMP_NPV, n %in% regions & file!=bauscen & variable!="GDP")) + geom_bar(position=position_stack(), stat="identity",aes(file, NPV, fill=variable), show.legend = TRUE) +ylab(paste("% of", measure, "(NPV)")) + xlab("") + theme(legend.position="bottom",legend.direction="horizontal") + guides(fill=guide_legend(title=NULL, nrow = 1))  + facet_grid(. ~ n) + theme(axis.text.x=element_text(angle=90,hjust=1)) + scale_y_continuous(labels = scales::percent) + geom_point(data = subset(DAM_DECOMP_NPV, n %in% regions & file!=bauscen & variable=="GDP"), aes(file, NPV), color="black", shape=16)
-  if(length(fullpathdir) > 1){p_bar <- p_bar + facet_grid(. ~ pathdir)}
+  if(length(results_dir) > 1){p_bar <- p_bar + facet_grid(. ~ pathdir)}
   if(show_numbers){p_bar <- p_bar + geom_text(data = subset(DAM_DECOMP_NPV, n %in% regions & file!=bauscen & variable=="GDP"), aes(file, NPV*1.1, label=paste0(round(NPV*100, 1),"%")), size=3)}
   saveplot(paste0(measure, " loss decomposition"))
 }
@@ -155,7 +155,7 @@ Carbon_Price <- function(scenplot=scenlist){
   carbonprice <- subset(carbonprice, file %in% scenplot)
   #carbonprice$value <- carbonprice$value * usd_deflator    #Apply deflator
   p <- ggplot(subset(carbonprice, t==20 & n=="usa")) + geom_bar(position=position_dodge(), stat="identity",aes(file, value*1e3/(44/12), fill=file), show.legend = TRUE) +ylab("$/tCO2") + theme(legend.position="bottom",legend.direction="horizontal")+ guides(fill=guide_legend(title=NULL, nrow = 1))
-  if(length(fullpathdir) > 1){p <- p + facet_grid(. ~ pathdir)}
+  if(length(results_dir) > 1){p <- p + facet_grid(. ~ pathdir)}
   saveplot("Global Carbon Price 2100")
 }
 
@@ -171,6 +171,6 @@ Social_Cost_of_Carbon <- function(regions=witch_regions, scenplot=scenlist){
   
   p <- ggplot(subset(SCC, n %in% regions & ttoyear(t) <= yearmax & ttoyear(t)>=2015 & file %in% scenplot),aes(ttoyear(t),SCC,colour=file)) + geom_line(stat="identity", linewidth=1.2) + xlab("year") +ylab("$/tCO2")
   if(length(regions)>1){p <- p + facet_grid(. ~ n, scales="free")}
-  if(length(fullpathdir)!=1){p <- p + facet_grid(pathdir ~ .)}
+  if(length(results_dir)!=1){p <- p + facet_grid(pathdir ~ .)}
   saveplot("Social Cost of Carbon")
 }

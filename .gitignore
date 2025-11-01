@@ -33,3 +33,9 @@ iiasa_credentials.yml
 # Development files (optional - remove these lines to track them)
 dev_workflow.R
 ROXYGEN_WORKFLOW.md
+test*
+
+# Source historical data (not released with package)
+# Only processed regional files in data/ are released
+data-raw/data_historical_values.gdx
+

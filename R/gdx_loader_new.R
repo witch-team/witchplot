@@ -23,8 +23,15 @@
     stop("No GDX files found in: ", results_dir)
   }
 
-  # Apply inclusion filter
-  if (!is.null(restrict_files) && restrict_files != "") {
+  # ALWAYS filter to files starting with "results_" first
+  all_files <- all_files[stringr::str_starts(all_files, "results_")]
+
+  if (length(all_files) == 0) {
+    stop("No GDX files starting with 'results_' found in: ", results_dir)
+  }
+
+  # Apply additional inclusion filters (if restrict_files is not "results_")
+  if (!is.null(restrict_files) && restrict_files != "" && restrict_files != "results_") {
     patterns <- if (is.character(restrict_files)) restrict_files else unlist(restrict_files)
     filtered <- all_files
     for (pattern in patterns) {
@@ -82,7 +89,6 @@
 #' Returns a list with all session data instead of using global variables.
 #'
 #' @param results_dir Path to results directory
-#' @param model_dir Path to model directory
 #' @param restrict_files Pattern to filter GDX files
 #' @param exclude_files Pattern to exclude GDX files
 #' @param removepattern Pattern to remove from scenario names
@@ -91,7 +97,6 @@
 #' @return List containing: filelist, scenlist, regions, palettes, metadata
 #' @keywords internal
 .load_gdx_session <- function(results_dir,
-                              model_dir = NULL,
                               restrict_files = "results_",
                               exclude_files = "",
                               removepattern = "results_",
@@ -129,23 +134,22 @@
   ))
 
   # Set filelist globally early so get_witch() can access it
-  # This is needed because get_witch() depends on filelist being global
+  # This is needed because get_witch() depends on this being global
+  # Note: results_dir is already assigned by the caller (run_witch, etc.)
   assign("filelist", filelist, envir = .GlobalEnv)
-  assign("fullpathdir", results_dir, envir = .GlobalEnv)
 
   # Get metadata from first file
   first_gdx_path <- file.path(results_dir, paste0(filelist[1], ".gdx"))
   metadata <- .extract_gdx_metadata(first_gdx_path, filelist, results_dir)
 
   # Get region information (suppress join messages)
-  region_info <- suppressMessages(.extract_region_info(filelist, results_dir, reg_id, model_dir))
+  region_info <- suppressMessages(.extract_region_info(filelist, results_dir, reg_id))
 
   # Return everything as a list
   list(
     filelist = filelist,
     scenlist = scenlist,
     results_dir = results_dir,
-    model_dir = model_dir,
     file_group_columns = file_group_columns,
     regions = region_info$regions,
     reg_id = region_info$reg_id,
@@ -212,10 +216,9 @@
 #' @param filelist GDX filenames
 #' @param results_dir Results directory
 #' @param reg_id Regional aggregation ID
-#' @param model_dir Model directory
 #' @return List with region info and palettes
 #' @keywords internal
-.extract_region_info <- function(filelist, results_dir, reg_id = NULL, model_dir = NULL) {
+.extract_region_info <- function(filelist, results_dir, reg_id = NULL) {
   # Determine reg_id if not provided
   if (is.null(reg_id)) {
     # Try to read conf directly from the first GDX file
@@ -248,24 +251,6 @@
   # Get regions from GDX files
   regions <- .get_regions_from_gdx(filelist, results_dir)
 
-  # Check for historical data directory - try to find actual directory
-  if (!is.null(model_dir) && length(model_dir) > 0 && !is.null(reg_id) && length(reg_id) > 0) {
-    data_dir <- file.path(model_dir, paste0("data_", reg_id[1]))
-    if (!dir.exists(data_dir)) {
-      # Try to find a directory that starts with data_<reg_id>
-      potential_dirs <- list.dirs(model_dir, full.names = FALSE, recursive = FALSE)
-      matching_dirs <- grep(paste0("^data_", reg_id[1]), potential_dirs, value = TRUE)
-      if (length(matching_dirs) > 0) {
-        data_dir <- file.path(model_dir, matching_dirs[1])
-        message("Found data directory: ", matching_dirs[1])
-        # Update reg_id to match actual directory
-        reg_id <- gsub("^data_", "", matching_dirs[1])
-      } else {
-        warning("Historical data directory not found: ", data_dir,
-                "\nHistorical data features will be disabled.")
-      }
-    }
-  }
 
   # Create color palettes
   palette <- get_region_palette(regions, reg_id)

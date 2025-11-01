@@ -58,7 +58,7 @@ library(witchplot)
 
 library(witchplot)
 
-run_witch() # Uses defaults: model_dir="../", results_dir="./"
+run_witch() # Uses defaults: results_dir="./"
 
   
 
@@ -153,8 +153,6 @@ write_plotdata_csv=FALSE  # Save plot data as CSV
 ## Parameters
 
   
-
--  **model_dir**: Path to model source code (default: "../")
 
 -  **results_dir**: Path(s) to results directories (default: "./", can be vector for multiple dirs)
 
