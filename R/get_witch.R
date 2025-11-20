@@ -25,12 +25,17 @@ get_witch <- function(variable_name,
           if(variable_name %in% c("E", "EIND", "MIU", "ABATEDEMI", "ABATECOST") & !("ghg" %in% names(tempdata))) tempdata$ghg <- "co2"
           if(!("n" %in% names(tempdata))) tempdata$n <- "World"
           tempdata$file <- as.character(file)
-          #add time step (but only if not loading sets or if there are no other dimensions beyond t, n, file, pathdir)
+          #add time step for all time-indexed variables (not just those without extra dimensions)
           if("t" %in% names(tempdata) && !is.element(variable_name, gdxtools::all_items(mygdx)$sets)){
-            # Only add tlen if there are no other set dimensions (beyond t, n, file, pathdir, value)
-            extra_dims <- setdiff(names(tempdata), c("t", "n", "file", "pathdir", "value"))
-            if(length(extra_dims) == 0) {
-              if(flexible_timestep) if("tlen" %in% gdxtools::all_items(mygdx)$parameters) tempdata <- tempdata %>% left_join(mygdx["tlen"] %>% rename(tlen=value), by = "t") else tempdata$tlen = tstep
+            # Add tlen for all variables with time dimension
+            if(flexible_timestep) {
+              if("tlen" %in% gdxtools::all_items(mygdx)$parameters) {
+                tempdata <- tempdata %>% dplyr::left_join(mygdx["tlen"] %>% dplyr::rename(tlen=value), by = "t")
+              } else {
+                tempdata$tlen <- tstep
+              }
+            } else {
+              tempdata$tlen <- tstep
             }
           }
           if(length(results_dir)>=1){

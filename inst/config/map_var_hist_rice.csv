@@ -1,5 +1,5 @@
 varname_model,set_model,element_model,var_witch,set_witch,element_witch,conv
-Y,,,SOCECON,*,gdp-ppp,1
+Y,,,Q,iq,y,1
 EIND,ghg,co2,Q_EMI,e,co2_ffi,44/12
 ELAND,,,Q_EMI,e,co2lu,44/12
 E,ghg,ch4,Q_EMI,e,ch4,1e3*44/12/25

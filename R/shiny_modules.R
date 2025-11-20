@@ -37,17 +37,35 @@ afd_agg$n <- NULL
 next
 }
 if(nrow(afd_agg)==0) next
+# Check if tlen exists
+has_tlen <- "tlen" %in% names(afd_agg)
 if(variable %in% default_meta_param()$parameter) {
 agg_type <- default_meta_param()[parameter==variable & type=="nagg"]$value
 if(agg_type=="sum") {
-afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=sum(value), .groups='drop')
-} else if(agg_type=="mean") {
-afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=mean(value), .groups='drop')
+if(has_tlen) {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), c("value", "tlen"))) %>% dplyr::summarize(value=sum(value), tlen=dplyr::first(tlen), .groups='drop')
 } else {
-afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=sum(value), .groups='drop')
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=sum(value), .groups='drop')
+}
+} else if(agg_type=="mean") {
+if(has_tlen) {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), c("value", "tlen"))) %>% dplyr::summarize(value=mean(value), tlen=dplyr::first(tlen), .groups='drop')
+} else {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=mean(value), .groups='drop')
 }
 } else {
-afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=sum(value), .groups='drop')
+if(has_tlen) {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), c("value", "tlen"))) %>% dplyr::summarize(value=sum(value), tlen=dplyr::first(tlen), .groups='drop')
+} else {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=sum(value), .groups='drop')
+}
+}
+} else {
+if(has_tlen) {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), c("value", "tlen"))) %>% dplyr::summarize(value=sum(value), tlen=dplyr::first(tlen), .groups='drop')
+} else {
+  afd_agg <- dplyr::group_by_at(afd_agg, setdiff(names(afd_agg), "value")) %>% dplyr::summarize(value=sum(value), .groups='drop')
+}
 }
 afd_agg <- dplyr::mutate(afd_agg, n=region_name) %>% as.data.frame()
 afd <- rbind(afd, afd_agg[, names(afd)])
@@ -75,10 +93,19 @@ afd
 }
 apply_growth_rate <- function(afd, growth_rate_flag) {
 if(!growth_rate_flag) return(afd)
-dplyr::group_by_at(afd, setdiff(names(afd), c("t", "value"))) %>%
+# Expect year column to already exist (added in prepare_plot_data with proper tlen handling)
+if(!"year" %in% names(afd)) {
+  # Fallback: add year if it doesn't exist
+  if("tlen" %in% names(afd)) {
+    afd$year <- ttoyear(afd$t, afd$tlen)
+  } else {
+    afd$year <- ttoyear(afd$t)
+  }
+}
+dplyr::group_by_at(afd, setdiff(names(afd), c("t", "value", "year"))) %>%
 dplyr::arrange(t) %>%
-dplyr::mutate(year=ttoyear(t), growthrate=((value/dplyr::lag(value))^(1/(year-dplyr::lag(year)))-1)*100) %>%
-dplyr::select(-year, -value) %>%
+dplyr::mutate(growthrate=((value/dplyr::lag(value))^(1/(year-dplyr::lag(year)))-1)*100) %>%
+dplyr::select(-value) %>%
 dplyr::rename(value=growthrate) %>%
 dplyr::mutate(value=ifelse(is.na(value), 0, value)) %>%
 dplyr::ungroup()
@@ -86,24 +113,48 @@ dplyr::ungroup()
 prepare_plot_data <- function(variable, field_show, yearlim, scenarios, additional_set_id, additional_set_selected, additional_set_id2=NULL, additional_set_selected2=NULL, regions, growth_rate_flag=FALSE, time_filter=TRUE, compute_aggregates=TRUE, verbose=FALSE) {
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(stringr::str_glue("Variable {variable} loaded."))
+
+# Check if variable has time dimension
+has_time_dim <- "t" %in% names(afd)
+
 afd <- subset_by_additional_sets(afd, additional_set_id, additional_set_selected, additional_set_id2, additional_set_selected2)
-if(time_filter) {
-afd <- subset(afd, ttoyear(t)>=yearlim[1] & ttoyear(t)<=yearlim[2])
+
+if(has_time_dim) {
+  # Process time-series data
+  # Add year column first, using tlen if it exists in the dataframe
+  if("tlen" %in% names(afd)) {
+    # Handle cases where tlen might be NA (e.g., historical data merged without tlen)
+    # For rows with NA tlen, use the default tstep
+    tlen_vec <- ifelse(!is.na(afd$tlen), afd$tlen, tstep)
+    afd$year <- ((as.numeric(afd$t)-1) * tlen_vec + year0)
+  } else {
+    afd$year <- ttoyear(afd$t)
+  }
+
+  if(time_filter) {
+    afd <- subset(afd, year>=yearlim[1] & year<=yearlim[2])
+  }
+  afd <- dplyr::filter(afd, !is.na(value))
+  if(compute_aggregates) {
+    afd <- compute_regional_aggregates(afd, variable)
+  }
+  afd <- apply_growth_rate(afd, growth_rate_flag)
+  afd <- subset(afd, file %in% c(scenarios, paste0(scenarios, "(b1)"), paste0(scenarios, "(b2)"), paste0(scenarios, "(b3)")) | stringr::str_detect(file, "historical"))
+  unit_conv <- unit_conversion(variable)
+  if(growth_rate_flag) {
+    unit_conv$unit <- " % p.a."
+    unit_conv$convert <- 1
+  }
+  afd$value <- afd$value * unit_conv$convert
+  list(data=afd, unit_conv=unit_conv, has_time_dim=TRUE)
+} else {
+  # Process non-time-series data (no time dimension)
+  afd <- dplyr::filter(afd, !is.na(value))
+  afd <- subset(afd, file %in% scenarios)
+  unit_conv <- unit_conversion(variable)
+  afd$value <- afd$value * unit_conv$convert
+  list(data=afd, unit_conv=unit_conv, has_time_dim=FALSE)
 }
-afd <- dplyr::filter(afd, !is.na(value))
-if(compute_aggregates) {
-afd <- compute_regional_aggregates(afd, variable)
-}
-afd <- apply_growth_rate(afd, growth_rate_flag)
-afd <- subset(afd, file %in% c(scenarios, paste0(scenarios, "(b1)"), paste0(scenarios, "(b2)"), paste0(scenarios, "(b3)")) | stringr::str_detect(file, "historical"))
-unit_conv <- unit_conversion(variable)
-if(growth_rate_flag) {
-unit_conv$unit <- " % p.a."
-unit_conv$convert <- 1
-}
-afd$value <- afd$value * unit_conv$convert
-afd$year <- ttoyear(afd$t)
-list(data=afd, unit_conv=unit_conv)
 }
 create_gdx_plot <- function(afd, variable, unit_conv, regions, yearlim, ylim_zero, region_palette, results_dir, show_historical=TRUE) {
 if(nrow(afd)==0) return(NULL)
