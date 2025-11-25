@@ -3,6 +3,8 @@
 # for each region mapping available in witchtools
 
 library(witchtools)
+library(gdxtools)
+library(data.table)
 
 # Get region and time mappings from witchtools
 region_mappings <- witchtools::region_mappings
@@ -23,11 +25,8 @@ cat("Will process", length(mappings_to_process), "region mappings:\n")
 cat(paste(mappings_to_process, collapse = ", "), "\n\n")
 
 # Determine the correct path to the source GDX file
-# The source file should be in data-raw/ (not released with package)
-# The processed files will be in data/ (released with package)
 if (file.exists("data-raw/data_historical_values.gdx")) {
   source_gdx <- normalizePath("data-raw/data_historical_values.gdx", winslash = "/")
-  data_raw_dir <- "data-raw"
   data_dir <- "data"
 } else {
   stop("Source GDX file not found.\n",
@@ -43,18 +42,113 @@ if (!dir.exists(data_dir)) {
   dir.create(data_dir, recursive = TRUE)
 }
 
-# Create a temporary working directory for conversions
-temp_dir <- file.path(data_dir, "temp_conversion")
-if (!dir.exists(temp_dir)) {
-  dir.create(temp_dir, recursive = TRUE)
+# Load the source GDX file once
+cat("Loading source GDX file...\n")
+source_gdx_obj <- gdx(source_gdx)
+
+# Manual conversion function
+convert_historical_data <- function(source_gdx_obj, reg_id, region_mapping) {
+  cat("  Converting to", reg_id, "regions...\n")
+
+  converted_params <- list()
+
+  # Process each parameter
+  for (param_name in source_gdx_obj$parameters$name) {
+    param_data <- gdxtools::extract(source_gdx_obj, param_name)
+
+    # Identify the region column (iso3 or any region mapping name)
+    col_names <- names(param_data)[names(param_data) != "value"]
+    region_col <- NULL
+
+    if ("iso3" %in% col_names) {
+      region_col <- "iso3"
+    } else {
+      # Check if any column matches a region mapping name
+      for (col in col_names) {
+        if (col %in% names(region_mappings)) {
+          region_col <- col
+          break
+        }
+      }
+    }
+
+    if (!is.null(region_col)) {
+      # This parameter has a region dimension - aggregate it
+      param_data <- as.data.table(param_data)
+
+      # Uppercase the region column to match mapping (iso3 codes are uppercase)
+      if (region_col == "iso3") {
+        param_data[[region_col]] <- toupper(param_data[[region_col]])
+      }
+
+      # Get the appropriate mapping
+      if (region_col == "iso3") {
+        # Map from iso3 to target region
+        mapping <- region_mapping
+        setnames(mapping, c("target_region", "source_region"))
+        param_data <- merge(param_data, mapping,
+                           by.x = region_col, by.y = "source_region",
+                           all.x = TRUE, allow.cartesian = TRUE)
+
+        # Remove rows where mapping failed
+        param_data <- param_data[!is.na(target_region)]
+
+        # Remove the original region column
+        param_data[[region_col]] <- NULL
+
+        # Aggregate by target region and other dimensions
+        group_cols <- c("target_region", setdiff(col_names, region_col))
+        param_data <- param_data[, .(value = sum(value, na.rm = TRUE)), by = group_cols]
+
+        # Rename target_region to 'n' and preserve original column order
+        # Original columns had region_col at a specific position, we need to put 'n' there
+        setnames(param_data, "target_region", "n")
+
+        # Reorder columns to match original order (with 'n' replacing region_col position)
+        # Original order was: col_names (which includes region_col) + "value"
+        # New order should be: col_names with region_col replaced by 'n' + "value"
+        original_order <- col_names
+        original_order[original_order == region_col] <- "n"
+        param_data <- param_data[, c(original_order, "value"), with = FALSE]
+      } else {
+        # Already in a region mapping format, just rename to 'n'
+        # Preserve column order
+        old_names <- names(param_data)
+        setnames(param_data, region_col, "n")
+        # Ensure value is last
+        new_order <- setdiff(names(param_data), "value")
+        param_data <- param_data[, c(new_order, "value"), with = FALSE]
+      }
+    } else {
+      # No region dimension, keep as-is (e.g., global parameters)
+      param_data <- as.data.table(param_data)
+    }
+
+    # Handle V1 column that might actually be year
+    if ("V1" %in% names(param_data) && !("year" %in% names(param_data))) {
+      # Check if V1 contains year-like values (4-digit numbers >= 1900)
+      v1_vals <- param_data[[1]]  # V1 is first column
+      v1_numeric <- suppressWarnings(as.numeric(as.character(v1_vals)))
+      if (!all(is.na(v1_numeric)) && all(v1_numeric[!is.na(v1_numeric)] >= 1900 & v1_numeric[!is.na(v1_numeric)] <= 2200)) {
+        # V1 contains years, rename it
+        setnames(param_data, "V1", "year")
+      }
+    }
+
+    # Ensure year column is numeric if it exists
+    if ("year" %in% names(param_data)) {
+      param_data[, year := as.numeric(as.character(year))]
+    }
+
+    # Store the converted parameter
+    converted_params[[param_name]] <- param_data
+  }
+
+  return(converted_params)
 }
 
-# Copy source file to temp directory
-temp_source <- file.path(temp_dir, "data_historical_values.gdx")
-file.copy(source_gdx, temp_source, overwrite = TRUE)
-
 # Loop through selected region mappings and create converted files
-cat("Generating historical data files for selected region mappings...\n\n")
+cat("\nGenerating historical data files for selected region mappings...\n\n")
 
 for (.reg_id in mappings_to_process) {
   # Check if this mapping exists in witchtools
@@ -66,41 +160,28 @@ for (.reg_id in mappings_to_process) {
   cat("Processing region mapping:", .reg_id, "\n")
 
   tryCatch({
-    # Convert the GDX file for this specific region mapping
-    # This will aggregate regions and rename the region column to 'n'
-    # All other set names (year, ghg, jreal, etc.) are preserved
-    witchtools::convert_gdx(
-      gdxfile = temp_source,
-      output_directory = temp_dir,
-      region_mappings = region_mappings,
-      time_mappings = time_mappings,
-      reg_id = .reg_id,
-      time_id = "year"  # Keep year as year, don't convert to t
-    )
+    # Get the region mapping
+    region_mapping <- as.data.table(region_mappings[[.reg_id]])
 
-         # The file is saved as data_historical_values.gdx in the output directory
-    # Move it to the final location with the proper name
-    temp_output <- file.path(temp_dir, "data_historical_values.gdx")
+    # The mapping has two columns: target (reg_id name) and source (iso3)
+    # Rename columns for clarity
+    col1 <- names(region_mapping)[1]  # target region (e.g., "witch17", "global")
+    col2 <- names(region_mapping)[2]  # source region (usually "iso3")
+
+    # Convert historical data
+    converted_params <- convert_historical_data(source_gdx_obj, .reg_id, region_mapping)
+
+    # Write to GDX file
     target_file <- file.path(data_dir, paste0("data_historical_values_", .reg_id, ".gdx"))
+    cat("  Writing GDX file...\n")
+    gdxtools::write.gdx(target_file, params = converted_params)
 
-    if (file.exists(temp_output)) {
-      #file.copy(temp_output, target_file, overwrite = TRUE)
-      cat("  Created:", target_file, "\n")
-      # Restore the source file for next iteration
-      file.copy(source_gdx, temp_source, overwrite = TRUE)
-    } else {
-      warning("Expected output file not found: ", temp_output)
-    }
+    cat("  Created:", target_file, "\n")
 
   }, error = function(e) {
     warning("Failed to process region mapping '", .reg_id, "': ", e$message)
-    # Restore the source file even on error
-    file.copy(source_gdx, temp_source, overwrite = TRUE)
   })
 }
-
-# Clean up temporary directory
-unlink(temp_dir, recursive = TRUE)
 
 cat("\nHistorical data generation complete!\n")
 cat("Generated files:\n")
@@ -109,11 +190,8 @@ print(list.files(data_dir, pattern = "^data_historical_values_.*\\.gdx$"))
 # Extract set dependencies from the ORIGINAL source GDX file
 cat("\nExtracting set dependencies from original historical data file...\n")
 
-library(gdxtools)
-
 # Read the original source file to get true set dependencies
 cat("Reading:", source_gdx, "\n")
-mygdx <- gdx(source_gdx)
 
 # Get all region mapping names to replace with 'n'
 region_set_names <- names(region_mappings)
@@ -123,7 +201,7 @@ region_set_names <- names(region_mappings)
 hist_set_deps <- list()
 
 # Get all parameters from the GDX file
-params <- mygdx$parameters
+params <- source_gdx_obj$parameters
 
 if (nrow(params) > 0) {
   for (i in 1:nrow(params)) {
@@ -133,7 +211,7 @@ if (nrow(params) > 0) {
     if (param_dim > 0) {
       # Get the actual data to see column names
       param_data <- tryCatch({
-        mygdx[param_name]
+        gdxtools::extract(source_gdx_obj, param_name)
       }, error = function(e) {
         NULL
       })
@@ -144,14 +222,13 @@ if (nrow(params) > 0) {
         col_names <- col_names[col_names != "value"]
 
         # Replace column names to match WITCH conventions:
-        # - Any region mapping name (witch17, witch20, etc.) or 'iso3' becomes 'n'
-        # - 'e' (emissions in historical data) becomes 'ghg' (WITCH name)
+        # - Any region mapping name or 'iso3' becomes 'n'
         # - Keep everything else as is (including 'year')
         col_names_standardized <- sapply(col_names, function(name) {
          if (name == "iso3" || name %in% region_set_names) {
             return("n")
           } else {
-            return(name)  # Keep original name including 'year', 'jreal', 'fuel', etc.
+            return(name)
           }
         }, USE.NAMES = FALSE)
 
