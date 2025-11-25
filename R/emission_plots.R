@@ -28,7 +28,7 @@ Intensity_Plot <- function(years=c(2050, 2100), regions="World", year0=2010, sce
   Intensity$EI=Intensity$PES/Intensity$GDP *1e3 #MJ/$ (from EJ/billion $)
   Intensity_t <- subset(Intensity, t %in% yeartot(c(years, year0)))
   Intensity_t <- Intensity_t %>% group_by_at(c("pathdir", file_group_columns, "n")) %>% mutate(CI_change=(((CI/CI[t==yeartot(year0)])**(1/(ttoyear(t)-year0)))-1), EI_change=(((EI/EI[t==yeartot(year0)])**(1/(ttoyear(t)-year0)))-1)) %>% as.data.frame()
-  Intensity_t <- subset(Intensity_t, file %in% scenplot)
+  Intensity_t <- subset(Intensity_t, file %in% scenplot | grepl("historical", file, ignore.case=TRUE))
   if(regions[1]=="World"){
     p_imp <- ggplot() + geom_point(data=subset(Intensity_t, ttoyear(t)!=year0+1e3), mapping=aes(x=CI_change, y=EI_change, color=file, shape=as.character(ttoyear(t))), size=6) + geom_hline(linewidth=1,aes(yintercept=-.011), linetype="dashed") + geom_vline(linewidth=1,aes(xintercept=-.003), linetype="dashed") + xlab(paste0("Carbon Intensity Change")) + ylab(paste0("Energy Intensity Change")) + guides(color=guide_legend(title=NULL), shape=guide_legend(title=NULL)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal") + scale_x_continuous(labels=scales::percent) + scale_y_continuous(labels=scales::percent)
     p_ciei <- ggplot() + geom_point(data=subset(Intensity_t), mapping=aes(x=CI, y=EI, color=file, shape=as.character(ttoyear(t))), size=6) + xlab(paste0("Carbon Intensity [gCO2/MJ]")) + ylab(paste0("Energy Intensity [MJ/$]")) + guides(color=guide_legend(title=NULL), shape=guide_legend(title=NULL)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal")

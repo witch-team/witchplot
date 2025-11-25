@@ -32,7 +32,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     }
     assign("PES_MIX",TPES,envir = .GlobalEnv)
     if(PES_y=="share"){TPES <- TPES %>% group_by_at(c("t", file_group_columns, "n", "pathdir")) %>% mutate(value=value/(sum(value))*100)}
-    p <- ggplot(data=subset(TPES, ttoyear(t) %in% years & file %in% scenplot))
+    p <- ggplot(data=subset(TPES, ttoyear(t) %in% years & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))))
     if(plot_type=="area"){
       p <- p + geom_area(aes(ttoyear(t),value, fill=category), stat="identity") + scale_fill_manual(values=c("green", "black", "blue", "chocolate2", "red", "brown", "yellow", "gold1"))
     }else if(plot_type=="bar"){
@@ -47,7 +47,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     if(add_total_tpes & PES_y=="value"){
       total_tpes <- get_witch("tpes") %>% mutate(value=value*0.0036)
       if(regions[1]=="World"){total_tpes$n <- NULL; total_tpes <- total_tpes[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]; total_tpes$n <- "World"}else{total_tpes <- subset(total_tpes, n %in% regions)}
-      p <- p + geom_line(data = subset(total_tpes, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & file %in% scenplot), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
+      p <- p + geom_line(data = subset(total_tpes, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
     }
     saveplot(plot_name)
 }
@@ -105,7 +105,7 @@ Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(ye
     assign("ELEC_MIX",ELEC,envir = .GlobalEnv)
     if(Electricity_y=="share"){ELEC <- 
       ELEC %>% group_by_at(c("t", file_group_columns, "n", "pathdir")) %>% mutate(value=value/(sum(value))*100)}
-    p <- ggplot(data=subset(ELEC, ttoyear(t) %in% years  & file %in% scenplot))
+    p <- ggplot(data=subset(ELEC, ttoyear(t) %in% years  & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))))
     p <- p + xlab("") + guides(fill=guide_legend(title=NULL, nrow = 2)) + theme(legend.position="bottom")
     if(plot_type=="area"){
       p <- p + geom_area(aes(ttoyear(t),value, fill=category), stat="identity") + scale_fill_manual(values=c("Solar"="yellow", "Hydro"="blue", "Nuclear"="cyan", "Wind"="orange", "Coal w/ CCS"="dimgrey", "Coal w/o CCS"="black", "Gas w/ CCS"="brown2", "Gas w/o CCS"="brown", "Oil"="darkorchid4", "Biomass w/ CCS"="green",  "Biomass w/o CCS"="darkgreen"))
@@ -120,7 +120,7 @@ Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(ye
     if(add_total_elec & Electricity_y=="value"){
       total_elec <- get_witch("Q_EN") %>% filter(j=="el") %>% mutate(value=value*0.0036)
       if(regions[1]=="World"){total_elec$n <- NULL; total_elec <- total_elec[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]; total_elec$n <- "World"}else{total_elec <- subset(total_elec, n %in% regions)}
-      p <- p + geom_line(data = subset(total_elec, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & file %in% scenplot), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
+      p <- p + geom_line(data = subset(total_elec, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
     }
     saveplot(plot_name)
 }
@@ -191,7 +191,7 @@ Investment_Plot <- function(regions=witch_regions, scenplot=scenlist, match_hist
     Investment_Energy <- Investment_Energy %>% mutate(value=value*min(max(0.8,value_annualized), 1.5)) %>% select(-value_annualized)
    }
   
-  Investment_Energy <- Investment_Energy %>% filter(t>=4 & t<=10 & (file %in% scenplot)) %>% group_by_at(c("category", "sector", "pathdir", file_group_columns, "n")) %>% mutate(value_annualized=value/(10-4+1) * 1e3)
+  Investment_Energy <- Investment_Energy %>% filter(t>=4 & t<=10 & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))) %>% group_by_at(c("category", "sector", "pathdir", file_group_columns, "n")) %>% mutate(value_annualized=value/(10-4+1) * 1e3)
   Investment_Energy_global <- rbind(Investment_Energy, Investment_Energy_historical) %>% group_by_at(c("category", "sector", "pathdir", file_group_columns, "t")) %>% filter(n %in% regions) %>% summarize(value=sum(value), value_annualized=sum(value_annualized))
   assign("Investment_Energy_regional",rbind(Investment_Energy, Investment_Energy_historical),envir = .GlobalEnv)
   Investment_Energy_global <- Investment_Energy_global %>% filter(category!="fg")
@@ -216,7 +216,7 @@ Power_capacity <- function(regions="World", years=seq(yearmin, yearmax), plot_na
       ELEC <- subset(ELEC, n %in% regions)
       ELEC <- ELEC %>% group_by_at(c("t", file_group_columns, "pathdir", "category")) %>% summarize(value=sum(value))  %>% mutate(n="World")
     }
-    p <- ggplot(data=subset(ELEC, ttoyear(t) %in% years  & file %in% scenplot))
+    p <- ggplot(data=subset(ELEC, ttoyear(t) %in% years  & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))))
     p <- p + xlab("") + guides(color=guide_legend(title=NULL, nrow = 3)) + theme(legend.position="bottom")
     #p <- p + geom_line(aes(ttoyear(t),value*1e3, color=category), stat="identity") + scale_color_manual(values=c("Solar PV"="yellow","Solar CSP"="gold2", "Hydro"="blue", "Nuclear"="cyan", "Wind Onshore"="orange", "Wind Offshore"="coral2", "Coal w/ CCS"="dimgrey", "Coal w/o CCS"="black", "Gas w/ CCS"="brown2", "Gas w/o CCS"="brown", "Oil"="darkorchid4", "Biomass w/ CCS"="green",  "Biomass w/o CCS"="darkgreen")) + ylab("GW")
     p <- p + geom_area(aes(ttoyear(t),value*1e3, fill=category), stat="identity", position = "stack") + scale_fill_manual(values=c("Solar PV"="yellow","Solar CSP"="gold2", "Hydro"="blue", "Nuclear"="cyan", "Wind Onshore"="orange", "Wind Offshore"="coral2", "Coal w/ CCS"="dimgrey", "Coal w/o CCS"="black", "Gas w/ CCS"="brown2", "Gas w/o CCS"="brown", "Oil"="darkorchid4", "Biomass w/ CCS"="green",  "Biomass w/o CCS"="darkgreen")) + ylab("GW")
