@@ -10,7 +10,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     #add bunkers
     BUNK_FUEL <- get_witch("BUNK_FUEL") %>% select(-jbunk) %>% mutate(value=value*0.0036) %>% rename(j=fuel)
     #aggregate sub-categories
-    TPES <- rbind(Q_FUEL_pes, Q_EN_pes, BUNK_FUEL)
+    TPES <- data.table::rbindlist(list(Q_FUEL_pes, Q_EN_pes, BUNK_FUEL), fill=TRUE)
     TPES <- subset(TPES, j %in% c("oil", "coal", "gas", "uranium", "trbiofuel", "wbio", "advbio", "trbiomass") | j %in% c("elpv", "elcsp", "elhydro", "elback", "elwindon", "elwindoff"))
     TPES$category[TPES$j %in% c("oil")] = "Oil"
     TPES$category[TPES$j %in% c("gas")] = "Natural Gas"
@@ -24,9 +24,9 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     PES_Categories <- c("Oil", "Coal", "Natural Gas", "Nuclear", "Biomass", "Hydro", "Wind", "Solar")
     TPES <- TPES[order(match(TPES$category,PES_Categories)),]
     TPES$j <- NULL
-    TPES <- as.data.table(TPES)[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir", "n", "category")]
+    TPES <- as.data.table(TPES)[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir", "n", "category")]
     if(regions[1]=="World"){
-      TPES$n <- NULL; TPES <- TPES[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir", "category")]; TPES$n <- "World"
+      TPES$n <- NULL; TPES <- TPES[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir", "category")]; TPES$n <- "World"
     }else{
       TPES <- subset(TPES, n %in% regions)
     }
@@ -46,7 +46,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     
     if(add_total_tpes & PES_y=="value"){
       total_tpes <- get_witch("tpes") %>% mutate(value=value*0.0036)
-      if(regions[1]=="World"){total_tpes$n <- NULL; total_tpes <- total_tpes[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir")]; total_tpes$n <- "World"}else{total_tpes <- subset(total_tpes, n %in% regions)}
+      if(regions[1]=="World"){total_tpes$n <- NULL; total_tpes <- total_tpes[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]; total_tpes$n <- "World"}else{total_tpes <- subset(total_tpes, n %in% regions)}
       p <- p + geom_line(data = subset(total_tpes, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & file %in% scenplot), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
     }
     saveplot(plot_name)
@@ -75,8 +75,9 @@ Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(ye
     setnames(JFED, "jfed", "j")
     Q_EN_pes <- get_witch("Q_EN") %>% mutate(value=value*0.0036)
     Q_EN_pes <- subset(Q_EN_pes, j %in% c("elpv", "elcsp", "elnuclear", "elwind", "elhydro"))
-    ELEC <- rbind(Q_EN_pes, JFED)
-    ELEC[is.na(ELEC)] <- 0 #get rid of NAs to avoid sums not being correct, mainly from historical data!
+    ELEC <- data.table::rbindlist(list(Q_EN_pes, JFED), fill=TRUE)
+    ELEC$value[is.na(ELEC$value)] <- 0 #get rid of NAs in value column only
+    ELEC$tlen[is.na(ELEC$tlen)] <- tstep #set default tstep if tlen is NA
     #aggregate sub-categories1
     ELEC$category[ELEC$j %in% c("elnuclear")] = "Nuclear"
     ELEC$category[ELEC$j %in% c("elpv", "elcsp")] = "Solar"
@@ -95,9 +96,9 @@ Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(ye
     Electricity_Categories <- c("Coal w/o CCS", "Coal w/ CCS", "Gas w/o CCS", "Gas w/ CCS", "Oil", "Nuclear", "Biomass w/o CCS", "Biomass w/ CCS", "Hydro", "Wind", "Solar")
     ELEC <- ELEC[order(match(ELEC$category,Electricity_Categories)),]
     ELEC$j <- NULL
-    ELEC <- as.data.table(ELEC)[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir", "n", "category")]
+    ELEC <- as.data.table(ELEC)[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir", "n", "category")]
     if(regions[1]=="World"){
-      ELEC$n <- NULL; ELEC <- ELEC[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir", "category")]; ELEC$n <- "World"
+      ELEC$n <- NULL; ELEC <- ELEC[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir", "category")]; ELEC$n <- "World"
     }else{
       ELEC <- subset(ELEC, n %in% regions)
     }
@@ -118,7 +119,7 @@ Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(ye
     
     if(add_total_elec & Electricity_y=="value"){
       total_elec <- get_witch("Q_EN") %>% filter(j=="el") %>% mutate(value=value*0.0036)
-      if(regions[1]=="World"){total_elec$n <- NULL; total_elec <- total_elec[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir")]; total_elec$n <- "World"}else{total_elec <- subset(total_elec, n %in% regions)}
+      if(regions[1]=="World"){total_elec$n <- NULL; total_elec <- total_elec[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]; total_elec$n <- "World"}else{total_elec <- subset(total_elec, n %in% regions)}
       p <- p + geom_line(data = subset(total_elec, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & file %in% scenplot), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
     }
     saveplot(plot_name)
@@ -173,14 +174,14 @@ Investment_Plot <- function(regions=witch_regions, scenplot=scenlist, match_hist
   I_EN_Storage <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% filter(jinv %in% j_stor | jinv=="str_storage") %>% summarize(value=sum(value)) %>% mutate(category="Storage")
   I_EN_GRID <- get_witch("I_EN_GRID")
   I_EN_GRID$category <- "Grid"
-  I_EN_categorized <- rbind(I_EN_Renewables, I_EN_CCS, I_EN_FossilFuels, I_EN_Nuclear, I_EN_Hydrogen, I_EN_GRID, I_EN_Storage)
+  I_EN_categorized <- data.table::rbindlist(list(I_EN_Renewables, I_EN_CCS, I_EN_FossilFuels, I_EN_Nuclear, I_EN_Hydrogen, I_EN_GRID, I_EN_Storage), fill=TRUE)
   I_EN_categorized$sector <- "Power supply"
   I_TRANSPORT_trad <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% filter(jinv %in% c("trad_cars", "hybrid", "trad_stfr", "hbd_stfr")) %>% summarize(value=sum(value)) %>% mutate(category="ICE/Hybrid")
   I_TRANSPORT_lowcarbon <- I_EN %>% group_by_at(c("pathdir", file_group_columns, "n", "t")) %>% filter(jinv %in% c("edv", "edv_stfr", "plg_hybrid", "plg_hbd_stfr")) %>% summarize(value=sum(value)) %>% mutate(category="Electric Vehicles")
-  I_TRANSPORT <- rbind(I_TRANSPORT_trad, I_TRANSPORT_lowcarbon); 
+  I_TRANSPORT <- data.table::rbindlist(list(I_TRANSPORT_trad, I_TRANSPORT_lowcarbon), fill=TRUE); 
   I_inv <- get_witch("I") %>% dplyr::rename(category=g) %>% mutate(sector="Final Good") %>% filter(category=="fg")
   I_OUT_inv <- get_witch("I_OUT") %>% rename(category=f) %>% filter(category=="oil") %>% mutate(category="Oil Extraction") %>% mutate(sector="Fuel supply")
-  Investment_Energy <- rbind(as.data.frame(I_EN_categorized), I_RD_inv, I_OUT_inv, I_inv)
+  Investment_Energy <- data.table::rbindlist(list(as.data.frame(I_EN_categorized), I_RD_inv, I_OUT_inv, I_inv), fill=TRUE)
   Investment_Energy_historical <- Investment_Energy %>% filter(file=="historical_iea") %>% filter(ttoyear(t)==2020) %>% mutate(file="IEA (2020)", value_annualized=value * 1e3)
   
   #align 2020 value to IEA to account for missing parts of reporting (as we only count modules etc.)

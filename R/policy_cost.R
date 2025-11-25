@@ -15,7 +15,7 @@ Policy_Cost <- function(discount_rate=5, tmin=4, tmax=20, bauscen="ssp2_bau", re
   GDP$GDP_Loss_discounted = (GDP$"GDP Loss")*(1+discount_rate/100)^(-(5*(GDP$t-3)))
   GDP$GDP_MER_discounted = (GDP$"value")*(1+discount_rate/100)^(-(5*(GDP$t-3)))
   GDP <- subset(GDP, file %in% scenplot)
-  GDP_WORLD <- GDP %>% select(-n) %>% group_by_at(c("t", file_group_columns, "pathdir")) %>% summarize_all(.funs = sum, na.rm=T) %>% mutate(n="World") %>% as.data.frame() 
+  GDP_WORLD <- GDP %>% select(-n) %>% group_by_at(c("t", file_group_columns, "pathdir")) %>% summarize(across(where(is.numeric) & !matches("tlen"), ~sum(.x, na.rm=T)), across(matches("tlen"), ~first(.x))) %>% mutate(n="World") %>% as.data.frame() 
   GDP <- rbind(GDP, GDP_WORLD)
   #PC over time plot (NOT discounted!)
   PC_annual_relative <- subset(GDP, t<=tmax&t>=tmin); PC_annual_relative$rel_cost <- PC_annual_relative$"GDP Loss"/PC_annual_relative$"bau";

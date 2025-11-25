@@ -8,12 +8,21 @@ Intensity_Plot <- function(years=c(2050, 2100), regions="World", year0=2010, sce
  tpes <- get_witch("tpes"); tpes_IP <- tpes %>% mutate(value=value*0.0036) %>% rename(PES=value)
   Q_EMI <- get_witch("Q_EMI"); Q_EMI_IP <- Q_EMI %>% mutate(value=value*3.667) %>% filter(e=="co2") %>% select(-e) %>% rename(CO2=value)
   Q <- get_witch("Q"); Q_IP <- Q %>% mutate(value=value*1e3) %>% filter(iq=="y") %>% select(-iq) %>% rename(GDP=value)
-  Intensity <- merge(tpes_IP, Q_EMI_IP, by=c("t", file_group_columns, "pathdir", "n"))
-  Intensity <- merge(Intensity, Q_IP, by=c("t", file_group_columns, "pathdir", "n"))
+  Intensity <- merge(tpes_IP, Q_EMI_IP, by=c("t", file_group_columns, "pathdir", "n", "tlen"))
+  Intensity <- merge(Intensity, Q_IP, by=c("t", file_group_columns, "pathdir", "n", "tlen"))
   Intensity_World <- Intensity; Intensity_World$n <- NULL
-  Intensity_World <- as.data.table(Intensity_World)[, lapply(.SD, sum), by=c("t", file_group_columns, "pathdir")]
+  Intensity_World <- as.data.table(Intensity_World)[, .(PES=sum(PES), CO2=sum(CO2), GDP=sum(GDP), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]
   Intensity_World$n <- "World"
   Intensity <- rbind(Intensity, Intensity_World)
+  # Add EU aggregate if requested
+  if("EU" %in% regions) {
+    eu <- get_witch("eu")
+    eu_regions <- if(!exists("eu") || nrow(eu)==0) c("europe") else unique(eu$n)
+    Intensity_EU <- subset(Intensity, n %in% eu_regions); Intensity_EU$n <- NULL
+    Intensity_EU <- as.data.table(Intensity_EU)[, .(PES=sum(PES), CO2=sum(CO2), GDP=sum(GDP), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]
+    Intensity_EU$n <- "EU"
+    Intensity <- rbind(Intensity, Intensity_EU)
+  }
   Intensity <- subset(Intensity, n %in% regions)
   Intensity$CI=Intensity$CO2/Intensity$PES *1e3 #gCO2/MJ (from GTCO2eq/EJ)
   Intensity$EI=Intensity$PES/Intensity$GDP *1e3 #MJ/$ (from EJ/billion $)
@@ -26,8 +35,8 @@ Intensity_Plot <- function(years=c(2050, 2100), regions="World", year0=2010, sce
     if(animate_plot) p_ciei <- ggplot() + geom_point(data=Intensity_t %>% select(CI,EI,file,t) %>% mutate(year=ttoyear(as.numeric(t))) %>% select(-t), mapping=aes(x=CI, y=EI, color=file), size=6) + xlab(paste0("Carbon Intensity [gCO2/MJ]")) + ylab(paste0("Energy Intensity [MJ/$]")) + guides(color=guide_legend(title=NULL), shape=guide_legend(title=NULL)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal") + labs(title = 'Year: {frame_time}') + transition_time(year) + ease_aes('linear')
     }else{
     Intensity_t <- subset(Intensity_t, t==yeartot(years[1])) #for regional results only first year!
-    p_imp <- ggplot() + geom_point(data=Intensity_t, mapping=aes(x=CI_change, y=EI_change, colour=n, shape=file), size=6) + geom_hline(linewidth=1,aes(yintercept=-.011), linetype="dashed") + geom_vline(linewidth=1,aes(xintercept=-0.003), linetype="dashed") + xlab(paste0("Carbon Intensity Change p.a.")) + ylab(paste0("Energy Intensity Change p.a.")) + guides(color=guide_legend(title=NULL, nrow = 2)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal") + scale_x_continuous(labels=scales::percent) + scale_y_continuous(labels=scales::percent) + scale_color_manual(values = region_palette[restrict_regions]) 
-    p_ciei <- ggplot() + geom_point(data=subset(Intensity_t), mapping=aes(x=CI, y=EI, color=n, shape=file), size=6) + xlab(paste0("Carbon Intensity [gCO2eq/MJ]")) + ylab(paste0("Energy Intensity [MJ/$]")) + guides(color=guide_legend(title=NULL), shape=guide_legend(title=NULL)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal") + scale_color_manual(values = region_palette[restrict_regions]) 
+    p_imp <- ggplot() + geom_point(data=Intensity_t, mapping=aes(x=CI_change, y=EI_change, colour=n, shape=file), size=6) + geom_hline(linewidth=1,aes(yintercept=-.011), linetype="dashed") + geom_vline(linewidth=1,aes(xintercept=-0.003), linetype="dashed") + xlab(paste0("Carbon Intensity Change p.a.")) + ylab(paste0("Energy Intensity Change p.a.")) + guides(color=guide_legend(title=NULL, nrow = 2)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal") + scale_x_continuous(labels=scales::percent) + scale_y_continuous(labels=scales::percent) + scale_color_manual(values = region_palette) 
+    p_ciei <- ggplot() + geom_point(data=subset(Intensity_t), mapping=aes(x=CI, y=EI, color=n, shape=file), size=6) + xlab(paste0("Carbon Intensity [gCO2eq/MJ]")) + ylab(paste0("Energy Intensity [MJ/$]")) + guides(color=guide_legend(title=NULL), shape=guide_legend(title=NULL)) + theme(legend.position="bottom", legend.direction = "horizontal", legend.box = "horizontal") + scale_color_manual(values = region_palette) 
     }
   if(animate_plot) print(animate(p_ciei, nframes = 20, duration = 10, rewind = FALSE))
   if(!animate_plot) {
