@@ -45,4 +45,7 @@ Suggests:
     tidytidbits,
     gdxrrw,
     testthat (>= 3.0.0)
+Remotes:
+    witch-team/witchtools,
+    lolow/gdxtools
 RoxygenNote: 7.3.3
