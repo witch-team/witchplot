@@ -26,9 +26,9 @@ shinyServer(function(input, output, session) {
     variable_atstart <- ifelse("Population" %in% variables, "Population", variables[1])
     scenarios <- unique(iiasadb_snapshot$SCENARIO)
 
-    #Scenario selector
+    #Scenario selector (max 10 rows with scrollbar)
     output$select_scenarios <- renderUI({
-      selectInput("scenarios_selected", "Select scenarios", scenarios, size=length(scenarios), selectize = F, multiple = T, selected = scenarios)
+      selectInput("scenarios_selected", "Select scenarios", scenarios, size=min(10, length(scenarios)), selectize = F, multiple = T, selected = scenarios)
     })  
     
     #Variable selector
@@ -48,9 +48,9 @@ shinyServer(function(input, output, session) {
       return(input$variable_selected)
     })
 
-    #MODEL selector
+    #MODEL selector (max 10 rows with scrollbar)
     output$select_models <- renderUI({
-      selectInput("models_selected", "Select models", models, size=length(models), selectize = F, multiple = T, selected = models)
+      selectInput("models_selected", "Select models", models, size=min(10, length(models)), selectize = F, multiple = T, selected = models)
     })  
     
     #REGION selector
@@ -75,9 +75,10 @@ shinyServer(function(input, output, session) {
     
     
 
-    # MAIN CODE FOR PLOT GENERATION  
+    # MAIN CODE FOR PLOT GENERATION
     output$iiasadb_compaR <- renderPlot({
       ylim_zero <- input$ylim_zero
+      show_legend <- input$show_legend
       variable <- input$variable_selected
       if(is.null(variable)) variable <- variables[1]
       #get data using new get_iiasadb() function (similar to get_witch())
@@ -112,6 +113,12 @@ shinyServer(function(input, output, session) {
         if(length(models_selected)==1){
           # Single model: use color for scenarios
           p <- ggplot(plot_data, aes(x=year, y=value, colour=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("") + ylab(unitplot) + xlim(yearlim[1],yearlim[2])
+          # Use a programmatic color palette that can handle many scenarios
+          n_scenarios <- length(unique(plot_data$SCENARIO))
+          if(n_scenarios > 12) {
+            # Use viridis for many scenarios (colorblind-friendly and handles many values)
+            p <- p + scale_colour_viridis_d(option = "turbo")
+          }
           # Historical data in different colors (one per data source/MODEL)
           if(nrow(hist_data) > 0) {
             p <- p + geom_line(data=hist_data, aes(x=year, y=value, colour=MODEL), stat="identity", linewidth=1.0)
@@ -119,6 +126,11 @@ shinyServer(function(input, output, session) {
         }else{
           # Multiple models: use color for MODEL, linetype for SCENARIO
           p <- ggplot(plot_data, aes(x=year, y=value, colour=MODEL, linetype=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("") + ylab(unitplot) + xlim(yearlim[1],yearlim[2])
+          # Use a programmatic color palette that can handle many models
+          n_models <- length(unique(plot_data$MODEL))
+          if(n_models > 12) {
+            p <- p + scale_colour_viridis_d(option = "turbo")
+          }
           # Historical data in different colors (one per MODEL)
           if(nrow(hist_data) > 0) {
             p <- p + geom_line(data=hist_data, aes(x=year, y=value, colour=MODEL), stat="identity", linewidth=1.0)
@@ -130,13 +142,22 @@ shinyServer(function(input, output, session) {
           p <- p + facet_grid(. ~ PATHDIR)
         }
         #legends:
-        p <- p + theme(text = element_text(size=16), legend.position="bottom", legend.direction = "horizontal", legend.box = "vertical", legend.key = element_rect(colour = NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL), linetype=guide_legend(title=NULL))
+        if(show_legend) {
+          p <- p + theme(text = element_text(size=16), legend.position="bottom", legend.direction = "horizontal", legend.box = "vertical", legend.key = element_rect(colour = NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL), linetype=guide_legend(title=NULL))
+        } else {
+          p <- p + theme(text = element_text(size=16), legend.position="none")
+        }
        }else{
         # Multiple regions: filter data first
         plot_data <- allfilesdata[allfilesdata$n %in% regions_lower & allfilesdata$SCENARIO!="historical", ]
         hist_data <- allfilesdata[allfilesdata$n %in% regions_lower & allfilesdata$SCENARIO=="historical", ]
 
         p <- ggplot(plot_data, aes(x=year, y=value, colour=interaction(n, MODEL), linetype=SCENARIO)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unitplot) + xlim(yearlim[1],yearlim[2]) + facet_grid(. ~ n)
+        # Use a programmatic color palette for region-model combinations
+        n_colors <- length(unique(interaction(plot_data$n, plot_data$MODEL)))
+        if(n_colors > 12) {
+          p <- p + scale_colour_viridis_d(option = "turbo")
+        }
         if(nrow(hist_data) > 0) {
           p <- p + geom_line(data=hist_data, aes(x=year, y=value, colour=n, linetype=MODEL), stat="identity", linewidth=1.0)
         }
@@ -146,7 +167,11 @@ shinyServer(function(input, output, session) {
           p <- p + facet_grid(PATHDIR ~ n)
         }
         #legends:
-        p <- p + theme(text = element_text(size=16), legend.position="bottom", legend.direction = "horizontal", legend.box = "vertical", legend.key = element_rect(colour = NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow = 2), linetype=guide_legend(title=NULL))
+        if(show_legend) {
+          p <- p + theme(text = element_text(size=16), legend.position="bottom", legend.direction = "horizontal", legend.box = "vertical", legend.key = element_rect(colour = NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow = 2), linetype=guide_legend(title=NULL))
+        } else {
+          p <- p + theme(text = element_text(size=16), legend.position="none")
+        }
       }
       if(nrow(allfilesdata)>0) print(p + labs(title=variable))
       })

@@ -62,7 +62,7 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
   #if(varname=="Q_EMI"){valid_suffix <- "_valid_primap"}
   if(varname=="Q"){valid_suffix <- c("_valid_wdi", "_valid_weo")}
   #if(varname=="SOCECON"){valid_suffix <- "_valid_wdi_sum"}
-  if(varname=="Q_IN"){valid_suffix <- "_valid_notcompatible"}
+  if(varname=="Q_IN"){valid_suffix <- "_valid_weo"}
   if(varname=="sigma"){valid_suffix <- "_valid_notcompatible"}
   if(varname=="quantiles"){valid_suffix <- "_valid_swiid"} #for quantiles
   if(varname=="K_EN"){valid_suffix <- c("_valid_platts_tot", "_valid_irena", "_valid_iaea", "_valid_gcpt")} #for quantiles, set it to 
@@ -143,7 +143,7 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
       for(.item in items_in_gdx){
         .hist_single <- as.data.table(.gdx_temp[.item])
         .hist_single$file <- gsub(paste0(tolower(varname), "_"), "", .item)
-        if(is.null(.hist)){.hist <- .hist_single}else{.hist <- rbind(.hist,.hist_single)}
+        if(is.null(.hist)){.hist <- .hist_single}else{.hist <- data.table::rbindlist(list(.hist, .hist_single), fill=TRUE)}
       }
     }
   } else {
@@ -151,7 +151,7 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
     for(.item in item){
       .hist_single <- as.data.table(.gdx[.item])
       .hist_single$file <- gsub(paste0(tolower(varname), "_"), "", .item)
-      if(.item==item[1]){.hist <- .hist_single}else{.hist <- rbind(.hist,.hist_single)}
+      if(.item==item[1]){.hist <- .hist_single}else{.hist <- data.table::rbindlist(list(.hist, .hist_single), fill=TRUE)}
     }
   }
   
@@ -329,7 +329,7 @@ add_historical_values <- function(variable, varname=deparse(substitute(variable)
   for(pd in basename(results_dir))
   {
     .hist_temp$pathdir <- pd
-    if(pd==basename(results_dir[1])){.hist=.hist_temp}else{.hist <-rbind(.hist,.hist_temp)}
+    if(pd==basename(results_dir[1])){.hist=.hist_temp}else{.hist <- data.table::rbindlist(list(.hist, .hist_temp), fill=TRUE)}
   }
   
   if(iiasadb){

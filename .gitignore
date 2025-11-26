@@ -27,8 +27,10 @@ iiasa_credentials.yml
 # Package builds
 *.tar.gz
 
-# Claude Code settings
+# Other folders
 .claude/
+TEACHING/
+binary_packages
 
 # Development files (optional - remove these lines to track them)
 dev_workflow.R
@@ -38,4 +40,5 @@ test*
 # Source historical data (not released with package)
 # Only processed regional files in data/ are released
 data-raw/data_historical_values.gdx
+
 

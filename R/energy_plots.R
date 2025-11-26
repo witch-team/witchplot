@@ -2,16 +2,22 @@
 
 Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin, yearmax), plot_type="area", scenplot=scenlist, plot_name="Primary Energy Mix", add_total_tpes = F){
   if(length(results_dir)!=1){stop("PES mix REGIONAL only for one directory at a time!"); return(invisible(NULL))}
-    Q_FUEL <- get_witch("Q_FUEL"); Q_FUEL_pes <- Q_FUEL %>% mutate(value=value*0.0036) %>% rename(j=fuel)
+    Q_FUEL <- get_witch("Q_FUEL", add_historical=FALSE); Q_FUEL_pes <- Q_FUEL %>% mutate(value=value*0.0036) %>% rename(j=fuel)
     #if fuel==uranium multiply by the efficiency of 0.3333
     Q_FUEL_pes <- Q_FUEL_pes %>% mutate(value=ifelse(j=="uranium", value*0.3333, value))
     Q_FUEL_pes
-    Q_EN <- get_witch("Q_EN") %>% filter(j %in% c("elhydro", "elwindon", "elwindoff", "elpv", "elcsp")); Q_EN_pes <- Q_EN %>% mutate(value=value*0.0036)
+    # Include both elwind (historical) and elwindon/elwindoff (model)
+    Q_EN <- get_witch("Q_EN", add_historical=FALSE) %>% filter(j %in% c("elhydro", "elwind", "elwindon", "elwindoff", "elpv", "elcsp")); Q_EN_pes <- Q_EN %>% mutate(value=value*0.0036)
     #add bunkers
-    BUNK_FUEL <- get_witch("BUNK_FUEL") %>% select(-jbunk) %>% mutate(value=value*0.0036) %>% rename(j=fuel)
+    BUNK_FUEL <- get_witch("BUNK_FUEL", add_historical=FALSE) %>% mutate(value=value*0.0036) %>% rename(j=fuel)
+    # Remove jbunk column if it exists
+    if("jbunk" %in% names(BUNK_FUEL)) BUNK_FUEL <- BUNK_FUEL %>% select(-jbunk)
     #aggregate sub-categories
     TPES <- data.table::rbindlist(list(Q_FUEL_pes, Q_EN_pes, BUNK_FUEL), fill=TRUE)
-    TPES <- subset(TPES, j %in% c("oil", "coal", "gas", "uranium", "trbiofuel", "wbio", "advbio", "trbiomass") | j %in% c("elpv", "elcsp", "elhydro", "elback", "elwindon", "elwindoff"))
+    # Ensure tlen column exists and has valid values
+    if(!"tlen" %in% names(TPES)) TPES$tlen <- tstep
+    TPES$tlen[is.na(TPES$tlen)] <- tstep
+    TPES <- subset(TPES, j %in% c("oil", "coal", "gas", "uranium", "trbiofuel", "wbio", "advbio", "trbiomass") | j %in% c("elpv", "elcsp", "elhydro", "elback", "elwind", "elwindon", "elwindoff"))
     TPES$category[TPES$j %in% c("oil")] = "Oil"
     TPES$category[TPES$j %in% c("gas")] = "Natural Gas"
     TPES$category[TPES$j %in% c("coal")] = "Coal"
@@ -19,7 +25,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     TPES$category[TPES$j %in% c("trbiofuel", "wbio", "advbio", "trbiomass")] = "Biomass"
     TPES$category[TPES$j %in% c("elpv", "elcsp")] = "Solar"
     TPES$category[TPES$j %in% c("elhydro")] = "Hydro"
-    TPES$category[TPES$j %in% c("elwindon", "elwindoff")] = "Wind"
+    TPES$category[TPES$j %in% c("elwind", "elwindon", "elwindoff")] = "Wind"
     #order categories for plots
     PES_Categories <- c("Oil", "Coal", "Natural Gas", "Nuclear", "Biomass", "Hydro", "Wind", "Solar")
     TPES <- TPES[order(match(TPES$category,PES_Categories)),]
@@ -32,7 +38,7 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     }
     assign("PES_MIX",TPES,envir = .GlobalEnv)
     if(PES_y=="share"){TPES <- TPES %>% group_by_at(c("t", file_group_columns, "n", "pathdir")) %>% mutate(value=value/(sum(value))*100)}
-    p <- ggplot(data=subset(TPES, ttoyear(t) %in% years & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))))
+    p <- ggplot(data=subset(TPES, ttoyear(t) %in% years & file %in% scenplot))
     if(plot_type=="area"){
       p <- p + geom_area(aes(ttoyear(t),value, fill=category), stat="identity") + scale_fill_manual(values=c("green", "black", "blue", "chocolate2", "red", "brown", "yellow", "gold1"))
     }else if(plot_type=="bar"){
@@ -45,9 +51,9 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
     if(PES_y=="share"){p <- p + ylab("%")}else{p <- p + ylab("EJ")}
     
     if(add_total_tpes & PES_y=="value"){
-      total_tpes <- get_witch("tpes") %>% mutate(value=value*0.0036)
+      total_tpes <- get_witch("tpes", add_historical=FALSE) %>% mutate(value=value*0.0036)
       if(regions[1]=="World"){total_tpes$n <- NULL; total_tpes <- total_tpes[, .(value=sum(value), tlen=first(tlen)), by=c("t", file_group_columns, "pathdir")]; total_tpes$n <- "World"}else{total_tpes <- subset(total_tpes, n %in% regions)}
-      p <- p + geom_line(data = subset(total_tpes, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & (file %in% scenplot | grepl("historical", file, ignore.case=TRUE))), aes(ttoyear(t),value), color="darkgrey", linetype="dashed") 
+      p <- p + geom_line(data = subset(total_tpes, ttoyear(t)<=yearmax & n %in% regions & ttoyear(t) %in% years & file %in% scenplot), aes(ttoyear(t),value), color="darkgrey", linetype="dashed")
     }
     saveplot(plot_name)
 }
@@ -58,9 +64,12 @@ Primary_Energy_Mix <- function(PES_y="value", regions="World", years=seq(yearmin
 
 Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(yearmin, yearmax), plot_type="area", plot_name="Electricity Mix", scenplot=scenlist, add_total_elec=F){
   if(length(results_dir)!=1){stop("Electricity mix only for one directory at a time!"); return(invisible(NULL))}
-    Q_IN <- get_witch("Q_IN"); Q_IN_el <- Q_IN %>% mutate(value=value * 0.0036)
-    csi_el <- get_witch("csi") %>% rename(csi=value) %>% mutate(jfed=gsub("_new", "", jfed)) %>% filter(jfed %in% c("eloil", "elpb", "elpc", "elgastr", "elbigcc", "elcigcc", "elgasccs", "elpc_ccs", "elpc_oxy"))
-    JFED <- merge(Q_IN_el, csi_el, by = c("t", "n", file_group_columns, "pathdir", "fuel", "jfed"), all=TRUE)
+    Q_IN <- get_witch("Q_IN", add_historical=FALSE); Q_IN_el <- Q_IN %>% mutate(value=value * 0.0036)
+    csi_el <- get_witch("csi", add_historical=FALSE) %>% rename(csi=value) %>% mutate(jfed=gsub("_new", "", jfed)) %>% filter(jfed %in% c("eloil", "elpb", "elpc", "elgastr", "elbigcc", "elcigcc", "elgasccs", "elpc_ccs", "elpc_oxy"))
+    # Merge - handle cases where Q_IN_el might not have 'fuel' column (historical data)
+    merge_cols <- intersect(c("t", "n", file_group_columns, "pathdir", "fuel", "jfed"),
+                           intersect(names(Q_IN_el), names(csi_el)))
+    JFED <- merge(Q_IN_el, csi_el, by = merge_cols, all=TRUE)
     JFED <- JFED %>% filter(jfed %in% c("eloil", "elpb", "elpc", "elgastr", "elbigcc", "elcigcc", "elgasccs", "elpc_ccs", "elpc_oxy"))
     #take efficiency for EL into account
     #add csi for historical (seems to be 1!)
@@ -71,18 +80,21 @@ Electricity_Mix <- function(Electricity_y="value", regions="World", years=seq(ye
     JFED$csi[is.na(JFED$csi)] <- 1
     JFED$value <- JFED$value * JFED$csi
     JFED$csi <- NULL
-    JFED$fuel <- NULL
+    if("fuel" %in% names(JFED)) JFED$fuel <- NULL
     setnames(JFED, "jfed", "j")
-    Q_EN_pes <- get_witch("Q_EN") %>% mutate(value=value*0.0036)
-    Q_EN_pes <- subset(Q_EN_pes, j %in% c("elpv", "elcsp", "elnuclear", "elwind", "elhydro"))
+    Q_EN_pes <- get_witch("Q_EN", add_historical=FALSE) %>% mutate(value=value*0.0036)
+    # Include both elwind (historical) and elwindon/elwindoff (model)
+    Q_EN_pes <- subset(Q_EN_pes, j %in% c("elpv", "elcsp", "elnuclear", "elwind", "elwindon", "elwindoff", "elhydro"))
     ELEC <- data.table::rbindlist(list(Q_EN_pes, JFED), fill=TRUE)
     ELEC$value[is.na(ELEC$value)] <- 0 #get rid of NAs in value column only
+    # Ensure tlen column exists and has valid values
+    if(!"tlen" %in% names(ELEC)) ELEC$tlen <- tstep
     ELEC$tlen[is.na(ELEC$tlen)] <- tstep #set default tstep if tlen is NA
     #aggregate sub-categories1
     ELEC$category[ELEC$j %in% c("elnuclear")] = "Nuclear"
     ELEC$category[ELEC$j %in% c("elpv", "elcsp")] = "Solar"
     ELEC$category[ELEC$j %in% c("elhydro")] = "Hydro"
-    ELEC$category[ELEC$j %in% c("elwind")] = "Wind"
+    ELEC$category[ELEC$j %in% c("elwind", "elwindon", "elwindoff")] = "Wind"
     ELEC$category[ELEC$j %in% c("elpb")] = "Biomass w/o CCS"
     ELEC$category[ELEC$j %in% c("elbigcc")] = "Biomass w/ CCS"
     ELEC$category[ELEC$j %in% c("elpc")] = "Coal w/o CCS"

@@ -3,7 +3,19 @@
 #load data if not running locally
 deploy_online <<- F
 if(!exists("iiasadb_snapshot")){
-  load("iiasadb_snapshot.Rdata", envir = .GlobalEnv)
+  # Try to load snapshot from results_dir first, fall back to package directory
+  snapshot_loaded <- FALSE
+  if(exists("results_dir") && length(results_dir) > 0) {
+    snapshot_path <- file.path(results_dir[1], "iiasadb_snapshot.Rdata")
+    if(file.exists(snapshot_path)) {
+      load(snapshot_path, envir = .GlobalEnv)
+      snapshot_loaded <- TRUE
+    }
+  }
+  # Fall back to package directory if not found in results_dir
+  if(!snapshot_loaded) {
+    load("iiasadb_snapshot.Rdata", envir = .GlobalEnv)
+  }
   #Install and load packages
   require_package <- function(package){
     suppressPackageStartupMessages(require(package,character.only=T, quietly = TRUE))  
@@ -37,8 +49,9 @@ shinyUI(fluidPage(
     uiOutput("select_scenarios"),
     uiOutput("select_models"),
     uiOutput("select_regions"),
-    #div(style="display:inline-block",uiOutput("compare_models_scenarios")),     
+    #div(style="display:inline-block",uiOutput("compare_models_scenarios")),
     div(style="display:inline-block",checkboxInput("ylim_zero", " Set y-axis limit to zero", value = F)),
+    div(style="display:inline-block",checkboxInput("show_legend", " Show legend", value = F)),
     if(!deploy_online){div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot"))}
     
     

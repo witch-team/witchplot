@@ -3,9 +3,8 @@ get_witch <- function(variable_name,
                       scenplot = scenlist,
                       field = "l",
                       postprocesssuffix = NULL,
-                      skip_restrict_regions = FALSE){
-  # Get add_historical option from global variable or options
-  add_historical <- if(exists("add_historical", envir=.GlobalEnv)) get("add_historical", envir=.GlobalEnv) else getOption("add_historical", TRUE)
+                      skip_restrict_regions = FALSE,
+                      add_historical = TRUE){
 
   for (current_pathdir in results_dir){
     for (file in filelist){
@@ -44,7 +43,8 @@ get_witch <- function(variable_name,
           if(!exists("allfilesdata")) {
             allfilesdata <- tempdata
           } else {
-            allfilesdata <- rbind(allfilesdata,tempdata)
+            # Use rbindlist with fill=TRUE to handle different columns (e.g., model vs historical data)
+            allfilesdata <- data.table::rbindlist(list(allfilesdata, tempdata), fill=TRUE)
           }
           remove(tempdata)
         }

@@ -344,13 +344,31 @@ if(file.exists(map_var_hist_file)) {
 assign("map_var_hist", map_var_hist, envir=.GlobalEnv)
 # IIASADB doesn't use GDX files, so don't initialize GDX session
 if(!is.null(iamc_databasename)) {
-snapshot_file <- system.file("gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata", package="witchplot")
+# Try to find snapshot in results_dir first, then fall back to package
+snapshot_file <- NULL
+if(exists("results_dir") && length(results_dir) > 0) {
+  results_snapshot <- file.path(results_dir[1], "iiasadb_snapshot.Rdata")
+  if(file.exists(results_snapshot)) {
+    snapshot_file <- results_snapshot
+  }
+}
+# Fall back to package location if not found in results_dir
+if(is.null(snapshot_file)) {
+  pkg_snapshot <- system.file("gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata", package="witchplot")
+  if(file.exists(pkg_snapshot)) {
+    snapshot_file <- pkg_snapshot
+  }
+}
+
 load_from_db <- TRUE
-if(file.exists(snapshot_file)) {
-input <- menu(c("Yes", "No"), title="There is a snapshot saved. Do you want to load it locally?")
+snapshot_loaded_from_file <- FALSE
+if(!is.null(snapshot_file)) {
+input <- menu(c("Yes", "No"), title="There is a snapshot available. Do you want to load it?")
 if(input==1) {
   load(snapshot_file, envir=.GlobalEnv)
+  message("Loaded snapshot from: ", snapshot_file)
   load_from_db <- FALSE
+  snapshot_loaded_from_file <- TRUE
 }
 }
 if(load_from_db) {
@@ -498,22 +516,35 @@ if(add_historical) {
 assign("iiasadb_snapshot", iiasadb_snapshot, envir=.GlobalEnv)
 assign("iiasadb_historical", iiasadb_historical, envir=.GlobalEnv)
 
-# Save the snapshot - try installed package location first, fall back to inst/ directory
-save_path <- system.file("gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata", package="witchplot")
-if(save_path == "" || !dir.exists(dirname(save_path))) {
-  # Package not installed or path doesn't exist, save to inst/ directory instead
-  inst_path <- file.path("inst", "gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata")
-  if(dir.exists(dirname(inst_path))) {
-    save_path <- inst_path
-    message("Saved snapshot to: ", save_path)
+# Save the snapshot only if we fetched new data (not if we loaded from existing snapshot)
+# For iamc_databasename: only save if we downloaded from DB
+# For iamc_filename/files: always save since we loaded from files
+should_save <- (!exists("snapshot_loaded_from_file") || !snapshot_loaded_from_file)
+
+if(should_save) {
+  save_path <- NULL
+  if(exists("results_dir") && length(results_dir) > 0) {
+    # Save to results_dir
+    save_path <- file.path(results_dir[1], "iiasadb_snapshot.Rdata")
     save(iiasadb_snapshot, iiasadb_historical, file=save_path)
+    message("Saved snapshot to: ", save_path)
   } else {
-    # Silently skip save if neither location exists
-    save_path <- NULL
+    # Fall back to package location if results_dir doesn't exist
+    pkg_save_path <- system.file("gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata", package="witchplot")
+    if(pkg_save_path != "" && dir.exists(dirname(pkg_save_path))) {
+      save_path <- pkg_save_path
+      save(iiasadb_snapshot, iiasadb_historical, file=save_path)
+      message("Saved snapshot to: ", save_path)
+    } else {
+      # Try inst/ directory if package location doesn't work
+      inst_path <- file.path("inst", "gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata")
+      if(dir.exists(dirname(inst_path))) {
+        save_path <- inst_path
+        save(iiasadb_snapshot, iiasadb_historical, file=save_path)
+        message("Saved snapshot to: ", save_path)
+      }
+    }
   }
-} else {
-  message("Saved snapshot to: ", save_path)
-  save(iiasadb_snapshot, iiasadb_historical, file=save_path)
 }
 if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "iiasadb", package="witchplot"))
 }
