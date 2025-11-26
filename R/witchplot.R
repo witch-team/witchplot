@@ -16,6 +16,17 @@ figure_format="png",
 add_historical=TRUE,
 write_plotdata_csv=FALSE
 )
+
+# Try to automatically initialize GDX library
+tryCatch({
+  if(requireNamespace("gdxtools", quietly = TRUE)) {
+    # Silently try to initialize GDX - don't show messages during package load
+    suppressMessages(gdxtools::igdx())
+  }
+}, error = function(e) {
+  # Silently fail - GDX will be initialized later if needed
+  # User will get helpful error message from setup_gdx() if they try to use it
+})
 }
 
 #' Clean up global environment from previous witchplot sessions
