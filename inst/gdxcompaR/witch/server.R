@@ -12,39 +12,58 @@ output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
 output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE)})
 output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")})
 variable_input <- reactive({return(input$variable_selected)})
+
+# PERFORMANCE FIX: Move index selectors OUTSIDE renderPlot
+# This prevents them from re-rendering every time the plot updates
+# Only update when variable changes
+set_info_reactive <- reactive({
+  variable <- variable_input()
+  if(is.null(variable)) variable <- list_of_variables[1]
+  field_show <- input$field
+  afd <- get_witch(variable, , field=field_show)
+  extract_additional_sets(afd, file_group_columns)
+})
+
+output$choose_additional_set <- renderUI({
+  set_info <- set_info_reactive()
+  variable <- variable_input()
+  sel <- input$additional_set_id_selected
+
+  # Smart default: prefer "co2_ffi" for Q_EMI, otherwise first element
+  if(is.null(sel) || !all(sel %in% set_info$set_elements)){
+    if(variable == "Q_EMI" && "co2_ffi" %in% set_info$set_elements) {
+      sel <- "co2_ffi"
+    } else {
+      sel <- set_info$set_elements[1]
+    }
+  }
+
+  size_elements <- min(length(set_info$set_elements), 5)
+  selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+})
+
+output$choose_additional_set2 <- renderUI({
+  set_info <- set_info_reactive()
+  sel2 <- input$additional_set_id_selected2
+  size_elements2 <- min(length(set_info$set_elements2), 5)
+  selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+})
+
 output$varname <- renderText({paste0(variable_input(), "|", str_trunc(paste(input$additional_set_id_selected, collapse=","), 20), ifelse(is.null(input$additional_set_id_selected2) | input$additional_set_id_selected2=="na", "", paste0("|", str_trunc(paste(input$additional_set_id_selected2, collapse=","), 20))), "|", str_trunc(paste(input$regions_selected, collapse=","), 10))})
+
 observeEvent(input$button_saveplotdata, {
 variable <- input$variable_selected
 print("Current plot saved in subdirectory 'graphs'")
 saveplot(variable, width=14, height=7)
 })
+
 output$gdxompaRplot <- renderPlot({
-show_historical <- input$add_historical  # Checkbox controls plot visibility
+show_historical <- input$add_historical
 ylim_zero <- input$ylim_zero
 field_show <- input$field
 variable <- input$variable_selected
 if(is.null(variable)) variable <- list_of_variables[1]
-afd <- get_witch(variable, , field=field_show)
-if(verbose) print(str_glue("Variable {variable} loaded."))
-set_info <- extract_additional_sets(afd, file_group_columns)
-output$choose_additional_set <- renderUI({
-variable <- variable_input()
-if(is.null(variable)) variable <- list_of_variables[1]
-sel <- input$additional_set_id_selected
-# If no selection OR selection not valid for current variable, use first element
-if(is.null(sel) || !all(sel %in% set_info$set_elements)){
-sel <- set_info$set_elements[1]
-}
-size_elements <- min(length(set_info$set_elements), 5)
-selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
-})
-output$choose_additional_set2 <- renderUI({
-variable <- variable_input()
-if(is.null(variable)) variable <- list_of_variables[1]
-sel2 <- input$additional_set_id_selected2
-size_elements2 <- min(length(set_info$set_elements2), 5)
-selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
-})
+set_info <- set_info_reactive()
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected
 additional_set_selected2 <- input$additional_set_id_selected2
@@ -65,32 +84,51 @@ yearlim <- input$yearlim
 scenarios <- input$scenarios_selected
 diagnostics_plots(scenplot=scenarios)
 })
+
 output$energymixplot <- renderPlot({
 yearlim <- input$yearlim
 regions <- input$regions_selected
 scenarios <- input$scenarios_selected
 mix_plot_type_selected <- input$mix_plot_type_selected
 mix_y_value_selected <- input$mix_y_value_selected
-Primary_Energy_Mix(PES_y=mix_y_value_selected, regions=regions[1], years=seq(yearlim[1], yearlim[2], 1), plot_type=mix_plot_type_selected, scenplot=scenarios)
+# FIX: Handle EU region properly - convert to actual EU region list
+plot_region <- regions[1]
+if(plot_region == "EU") {
+  eu <- tryCatch(get_witch("eu"), error = function(e) NULL)
+  eu_regions <- if(is.null(eu) || nrow(eu)==0) c("europe") else unique(eu$n)
+  plot_region <- eu_regions[1]  # Use first EU region for mix plot
+}
+Primary_Energy_Mix(PES_y=mix_y_value_selected, regions=plot_region, years=seq(yearlim[1], yearlim[2], 1), plot_type=mix_plot_type_selected, scenplot=scenarios)
 })
+
 output$electricitymixplot <- renderPlot({
 yearlim <- input$yearlim
 regions <- input$regions_selected
 scenarios <- input$scenarios_selected
 mix_plot_type_selected <- input$mix_plot_type_selected
 mix_y_value_selected <- input$mix_y_value_selected
-Electricity_Mix(Electricity_y=mix_y_value_selected, regions=regions[1], years=seq(yearlim[1], yearlim[2], 1), plot_type=mix_plot_type_selected, scenplot=scenarios)
+# FIX: Handle EU region properly - convert to actual EU region list
+plot_region <- regions[1]
+if(plot_region == "EU") {
+  eu <- tryCatch(get_witch("eu"), error = function(e) NULL)
+  eu_regions <- if(is.null(eu) || nrow(eu)==0) c("europe") else unique(eu$n)
+  plot_region <- eu_regions[1]  # Use first EU region for mix plot
+}
+Electricity_Mix(Electricity_y=mix_y_value_selected, regions=plot_region, years=seq(yearlim[1], yearlim[2], 1), plot_type=mix_plot_type_selected, scenplot=scenarios)
 })
+
 output$investmentplot <- renderPlot({
 scenarios <- input$scenarios_selected
 Investment_Plot(regions="World", scenplot=scenarios)
 })
+
 output$policycostplot <- renderPlot({
 yearlim <- input$yearlim
 regions <- input$regions_selected
 scenarios <- input$scenarios_selected
 Policy_Cost(discount_rate=5, regions=regions, bauscen=scenarios[1], show_numbers=TRUE, tmax=yeartot(yearlim[2]))
 })
+
 output$intensityplot <- renderPlot({
 yearlim <- input$yearlim
 regions <- input$regions_selected
