@@ -26,13 +26,9 @@ get_witch <- function(variable_name,
           tempdata$file <- as.character(file)
           #add time step for all time-indexed variables (not just those without extra dimensions)
           if("t" %in% names(tempdata) && !is.element(variable_name, gdxtools::all_items(mygdx)$sets)){
-            # Add tlen for all variables with time dimension
-            if(flexible_timestep) {
-              if("tlen" %in% gdxtools::all_items(mygdx)$parameters) {
-                tempdata <- tempdata %>% dplyr::left_join(mygdx["tlen"] %>% dplyr::rename(tlen=value), by = "t")
-              } else {
-                tempdata$tlen <- tstep
-              }
+            # Always try to add tlen from the GDX file; fallback to tstep if not available
+            if("tlen" %in% gdxtools::all_items(mygdx)$parameters) {
+              tempdata <- tempdata %>% dplyr::left_join(mygdx["tlen"] %>% dplyr::rename(tlen=value), by = "t")
             } else {
               tempdata$tlen <- tstep
             }

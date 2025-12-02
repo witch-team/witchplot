@@ -156,7 +156,6 @@
     region_palette = region_info$palette,
     region_palette_short = region_info$palette_short,
     region_palette_long = region_info$palette_long,
-    flexible_timestep = metadata$flexible_timestep,
     stochastic_files = metadata$stochastic_files,
     var_descriptions = metadata$var_descriptions
   )
@@ -177,16 +176,8 @@
     data.frame(name = mygdx$parameters$name, description = mygdx$parameters$text)
   )
 
-  # Check for flexible timestep
-  flexible_timestep <- FALSE
-  if (requireNamespace("gdxtools", quietly = TRUE) &&
-      exists("batch_extract", where = asNamespace("gdxtools"), mode = "function")) {
-    tlen_values <- suppressWarnings(gdxtools::batch_extract(
-      "tlen",
-      files = file.path(results_dir, paste0(filelist, ".gdx"))
-    ))
-    flexible_timestep <- length(unique(tlen_values$tlen$value)) > 1
-  }
+  # Note: We always assume flexible timestep - tlen will be loaded in get_witch()
+  # No longer need to detect flexible_timestep
 
   # Check for stochastic runs
   stochastic_files <- NULL
@@ -206,7 +197,6 @@
 
   list(
     var_descriptions = var_descriptions,
-    flexible_timestep = flexible_timestep,
     stochastic_files = stochastic_files
   )
 }
@@ -324,7 +314,6 @@
   assign("region_palette", session_data$region_palette, envir = .GlobalEnv)
   assign("region_palette_specific_short", session_data$region_palette_short, envir = .GlobalEnv)
   assign("region_palette_longnames", session_data$region_palette_long, envir = .GlobalEnv)
-  assign("flexible_timestep", session_data$flexible_timestep, envir = .GlobalEnv)
   assign("stochastic_files", session_data$stochastic_files, envir = .GlobalEnv)
   assign("all_var_descriptions", session_data$var_descriptions, envir = .GlobalEnv)
   invisible(NULL)

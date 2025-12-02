@@ -40,7 +40,7 @@ tryCatch({
     "filelist", "scenlist", "file_group_columns",
     "witch_regions", "display_regions", "region_palette",
     "region_palette_specific_short", "region_palette_longnames",
-    "flexible_timestep", "stochastic_files", "all_var_descriptions",
+    "stochastic_files", "all_var_descriptions",
     "graphdir", "map_var_hist", "iamc_filename", "iamc_databasename",
     "iiasadb_snapshot", "iiasadb_historical",
     "varlist_combine_old_new_j", "file_separate", "nice_region_names", "restrict_regions"

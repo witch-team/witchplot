@@ -94,18 +94,8 @@
   }
   assign("file_group_columns", file_group_columns, envir=.GlobalEnv)
 
-  # Check for flexible timestep
-  if (requireNamespace("gdxtools", quietly = TRUE) &&
-      exists("batch_extract", where = asNamespace("gdxtools"), mode = "function")) {
-    tlen_values <- suppressWarnings(gdxtools::batch_extract(
-      "tlen",
-      files = file.path(results_dir, paste0(filelist, ".gdx"))
-    ))
-    flexible_timestep <- length(unique(tlen_values$tlen$value)) > 1
-  } else {
-    flexible_timestep <- FALSE
-  }
-  assign("flexible_timestep", flexible_timestep, envir=.GlobalEnv)
+  # Note: We always assume flexible timestep - tlen will be loaded in get_witch()
+  # No need to detect or set flexible_timestep anymore
 
   # Check for stochastic runs
   tset <- get_witch("t")
