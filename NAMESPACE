@@ -1,9 +1,10 @@
 exportPattern("^[[:alpha:]]+")
 import(ggplot2)
-import(dplyr)
 import(shiny)
-importFrom(data.table, fread)
+importFrom(data.table, fread, as.data.table, rbindlist, setnames)
 importFrom(stringr, str_detect, str_subset, str_glue, str_trunc)
 importFrom(plotly, ggplotly)
 importFrom(shinyWidgets, pickerInput)
 importFrom(memoise, memoise)
+# Import dplyr LAST to ensure its functions (filter, select, etc.) take precedence over data.table
+import(dplyr)
