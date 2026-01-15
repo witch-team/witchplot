@@ -1,6 +1,7 @@
 exportPattern("^[[:alpha:]]+")
 import(ggplot2)
 import(shiny)
+import(gdxtools)
 importFrom(data.table, fread, as.data.table, rbindlist, setnames)
 importFrom(stringr, str_detect, str_subset, str_glue, str_trunc)
 importFrom(plotly, ggplotly)
