@@ -48,6 +48,15 @@ shinyServer(function(input, output, session) {
       return(input$variable_selected)
     })
 
+    # Variable name display with region info
+    output$varname <- renderText({
+      var_text <- paste0("Variable: ", variable_input())
+      if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
+        var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+      }
+      var_text
+    })
+
     #MODEL selector (max 10 rows with scrollbar)
     output$select_models <- renderUI({
       selectInput("models_selected", "Select models", models, size=min(10, length(models)), selectize = F, multiple = T, selected = models)

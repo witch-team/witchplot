@@ -49,7 +49,19 @@ output$choose_additional_set2 <- renderUI({
   selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 
-output$varname <- renderText({paste0(variable_input(), "|", str_trunc(paste(input$additional_set_id_selected, collapse=","), 20), ifelse(is.null(input$additional_set_id_selected2) | input$additional_set_id_selected2=="na", "", paste0("|", str_trunc(paste(input$additional_set_id_selected2, collapse=","), 20))), "|", str_trunc(paste(input$regions_selected, collapse=","), 10))})
+output$varname <- renderText({
+  var_text <- paste0("Variable: ", variable_input())
+  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
+    var_text <- paste0(var_text, " - Element: ", str_trunc(paste(input$additional_set_id_selected, collapse=","), 20))
+  }
+  if(!is.null(input$additional_set_id_selected2) && input$additional_set_id_selected2[1] != "na") {
+    var_text <- paste0(var_text, " - Element2: ", str_trunc(paste(input$additional_set_id_selected2, collapse=","), 20))
+  }
+  if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
+    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+  }
+  var_text
+})
 
 observeEvent(input$button_saveplotdata, {
 variable <- input$variable_selected

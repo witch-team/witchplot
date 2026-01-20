@@ -6,7 +6,16 @@ output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
 output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE)})
 output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")})
 variable_selected_reactive <- reactive({input$variable_selected})
-output$varname <- renderText({paste("Variable:", variable_selected_reactive(), " Element:", paste(input$additional_set_id_selected, collapse=","))})
+output$varname <- renderText({
+  var_text <- paste0("Variable: ", variable_selected_reactive())
+  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
+    var_text <- paste0(var_text, " - Element: ", paste(input$additional_set_id_selected, collapse=","))
+  }
+  if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
+    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+  }
+  var_text
+})
 observeEvent(input$button_saveplotdata, {
 variable <- input$variable_selected
 print("Current plot saved in subdirectory 'graphs'")

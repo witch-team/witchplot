@@ -11,8 +11,26 @@ output$select_variable <- renderUI({
 output$select_regions <- renderUI({regions_for_selector <- c(witch_regions, "World"); selectInput("regions_selected", "Select regions", regions_for_selector, size=min(17, length(regions_for_selector)), selectize=FALSE, multiple=TRUE, selected=witch_regions)})
 variable_selected_reactive <- reactive({input$variable_selected})
 variable_input <- reactive({return(input$variable_selected)})
-output$varname <- renderText({paste("Variable:", variable_selected_reactive(), " Element:", paste(input$additional_set_id_selected, collapse=","))})
-output$varname2 <- renderText({paste("Variable:", variable_selected_reactive(), " Element:", paste(input$additional_set_id_selected, collapse=","))})
+output$varname <- renderText({
+  var_text <- paste0("Variable: ", variable_selected_reactive())
+  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
+    var_text <- paste0(var_text, " - Element: ", paste(input$additional_set_id_selected, collapse=","))
+  }
+  if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
+    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+  }
+  var_text
+})
+output$varname2 <- renderText({
+  var_text <- paste0("Variable: ", variable_selected_reactive())
+  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
+    var_text <- paste0(var_text, " - Element: ", paste(input$additional_set_id_selected, collapse=","))
+  }
+  if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
+    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+  }
+  var_text
+})
 observeEvent(input$button_saveplotdata, {
 variable <- input$variable_selected
 print("Current plot saved in subdirectory 'graphs'")
