@@ -36,7 +36,7 @@ variable <- input$variable_selected
 print("Current plot saved in subdirectory 'graphs'")
 saveplot(variable, width=14, height=7)
 })
-output$gdxcompaRplot <- renderPlot({
+output$gdxcompaRplot <- renderUI({
 show_historical <- input$add_historical  # Checkbox controls plot visibility
 ylim_zero <- input$ylim_zero
 field_show <- input$field
@@ -45,55 +45,112 @@ variable <- input$variable_selected
 if(is.null(variable)) variable <- list_of_variables[1]
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
-set_info <- extract_additional_sets(afd, file_group_columns)
-output$choose_additional_set <- renderUI({
-variable <- variable_input()
-if(is.null(variable)) variable <- list_of_variables[1]
-sel <- input$additional_set_id_selected
-if(is.null(sel)){
-if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
+
+# Check if variable has time dimension
+has_time <- "t" %in% names(afd)
+
+if(!has_time) {
+  # Show dynamic table instead of plot
+  set_info <- extract_additional_sets(afd, file_group_columns)
+  output$choose_additional_set <- renderUI({
+    variable <- variable_input()
+    if(is.null(variable)) variable <- list_of_variables[1]
+    sel <- input$additional_set_id_selected
+    if(is.null(sel)){
+      if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
+    }
+    size_elements <- min(length(set_info$set_elements), 5)
+    selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+  })
+  output$choose_additional_set2 <- renderUI({
+    variable <- variable_input()
+    if(is.null(variable)) variable <- list_of_variables[1]
+    sel2 <- input$additional_set_id_selected2
+    size_elements2 <- min(length(set_info$set_elements2), 5)
+    selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+  })
+
+  filtered_data <- afd
+  # Order pathdir factor according to results_dir vector
+  if("pathdir" %in% names(filtered_data) && length(results_dir) > 1) {
+    pathdir_levels <- basename(results_dir)
+    filtered_data$pathdir <- factor(filtered_data$pathdir, levels=pathdir_levels)
+  }
+  additional_set_selected <- input$additional_set_id_selected
+  additional_set_selected2 <- input$additional_set_id_selected2
+  regions <- input$regions_selected
+  scenarios <- input$scenarios_selected
+
+  if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
+  if(set_info$additional_set_id != "na") {
+    filtered_data[[set_info$additional_set_id]] <- tolower(filtered_data[[set_info$additional_set_id]])
+    filtered_data <- subset(filtered_data, get(set_info$additional_set_id) %in% additional_set_selected)
+  }
+  if(set_info$additional_set_id2 != "na") {
+    filtered_data[[set_info$additional_set_id2]] <- tolower(filtered_data[[set_info$additional_set_id2]])
+    filtered_data <- subset(filtered_data, get(set_info$additional_set_id2) %in% additional_set_selected2)
+  }
+  if(!is.null(regions) && "n" %in% names(filtered_data)) {
+    filtered_data <- subset(filtered_data, n %in% regions)
+  }
+  if(!is.null(scenarios)) {
+    filtered_data <- subset(filtered_data, file %in% scenarios)
+  }
+  return(DT::datatable(filtered_data, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE))
+} else {
+  # Show plot as usual
+  set_info <- extract_additional_sets(afd, file_group_columns)
+  output$choose_additional_set <- renderUI({
+  variable <- variable_input()
+  if(is.null(variable)) variable <- list_of_variables[1]
+  sel <- input$additional_set_id_selected
+  if(is.null(sel)){
+  if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
+  }
+  size_elements <- min(length(set_info$set_elements), 5)
+  selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+  })
+  output$choose_additional_set2 <- renderUI({
+  variable <- variable_input()
+  if(is.null(variable)) variable <- list_of_variables[1]
+  sel2 <- input$additional_set_id_selected2
+  size_elements2 <- min(length(set_info$set_elements2), 5)
+  selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+  })
+  yearlim <- input$yearlim
+  additional_set_selected <- input$additional_set_id_selected
+  regions <- input$regions_selected
+  scenarios <- input$scenarios_selected
+  if(is.null(regions)) regions <- display_regions
+  if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
+  if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
+  plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, NULL, NULL, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
+  afd <- plot_data$data
+  unit_conv <- plot_data$unit_conv
+  if(growth_rate){
+  unit_conv$unit <- " % p.a."
+  unit_conv$convert <- 1
+  }
+  afd$n <- ifelse(afd$n=="World", "World", toupper(afd$n))
+  if(regions[1]=="World" | length(regions)==1){
+  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
+  if(ylim_zero) p <- p + ylim(0, NA)
+  if(show_historical) {
+    p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
+  }
+  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
+  }else{
+  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+  if(show_historical) {
+    p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
+  }
+  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow=2), linetype=guide_legend(title=NULL))
+  }
+  if(length(results_dir)!=1) p <- p + facet_grid(. ~ pathdir)
+  if(nrow(afd)>0) {
+    return(renderPlot({print(p + labs(title=variable))}, height = 600))
+  }
 }
-size_elements <- min(length(set_info$set_elements), 5)
-selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
-})
-output$choose_additional_set2 <- renderUI({
-variable <- variable_input()
-if(is.null(variable)) variable <- list_of_variables[1]
-sel2 <- input$additional_set_id_selected2
-size_elements2 <- min(length(set_info$set_elements2), 5)
-selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
-})
-yearlim <- input$yearlim
-additional_set_selected <- input$additional_set_id_selected
-regions <- input$regions_selected
-scenarios <- input$scenarios_selected
-if(is.null(regions)) regions <- display_regions
-if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
-if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
-plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, NULL, NULL, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
-afd <- plot_data$data
-unit_conv <- plot_data$unit_conv
-if(growth_rate){
-unit_conv$unit <- " % p.a."
-unit_conv$convert <- 1
-}
-afd$n <- ifelse(afd$n=="World", "World", toupper(afd$n))
-if(regions[1]=="World" | length(regions)==1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
-if(ylim_zero) p <- p + ylim(0, NA)
-if(show_historical) {
-  p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
-}
-p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
-}else{
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
-if(show_historical) {
-  p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
-}
-p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow=2), linetype=guide_legend(title=NULL))
-}
-if(length(results_dir)!=1) p <- p + facet_grid(. ~ pathdir)
-if(nrow(afd)>0) print(p + labs(title=variable))
 })
 output$gdxcompaRstackedplot <- renderPlot({
 show_historical <- input$add_historical  # Checkbox controls plot visibility
@@ -118,6 +175,11 @@ if(is.null(regions)) regions <- display_regions
 if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
 if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
 afd <- subset_by_additional_sets(afd, set_info$additional_set_id, additional_set_selected, NULL, NULL)
+# Order pathdir factor according to results_dir vector
+if("pathdir" %in% names(afd) && length(results_dir) > 1) {
+  pathdir_levels <- basename(results_dir)
+  afd$pathdir <- factor(afd$pathdir, levels=pathdir_levels)
+}
 afd <- subset(afd, ttoyear(t)>=yearlim[1] & ttoyear(t)<=yearlim[2])
 afd <- afd %>% filter(!is.na(value))
 afd <- subset(afd, file %in% c(scenarios, paste0(scenarios, "(b1)"), paste0(scenarios, "(b2)"), paste0(scenarios, "(b3)")) | str_detect(file, "historical") | str_detect(file, "valid"))

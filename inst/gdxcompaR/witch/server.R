@@ -69,7 +69,7 @@ print("Current plot saved in subdirectory 'graphs'")
 saveplot(variable, width=14, height=7)
 })
 
-output$gdxompaRplot <- renderPlot({
+output$gdxompaRplot <- renderUI({
 show_historical <- input$add_historical
 ylim_zero <- input$ylim_zero
 field_show <- input$field
@@ -86,9 +86,42 @@ if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_ele
 if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
 if(is.null(additional_set_selected2)) additional_set_selected2 <- set_info$set_elements2[1]
 if((set_info$additional_set_id2!="na" & additional_set_selected2[1]=="na") | !(additional_set_selected2[1] %in% set_info$set_elements2)) additional_set_selected2 <- set_info$set_elements2[1]
-plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate_flag=FALSE, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
-p <- create_gdx_plot(plot_data$data, variable, plot_data$unit_conv, regions, yearlim, ylim_zero, region_palette, results_dir, show_historical)
-if(!is.null(p)) print(p)
+
+# Check if variable has time dimension
+afd <- get_witch(variable, , field=field_show)
+has_time <- "t" %in% names(afd)
+
+if(!has_time) {
+  # Show dynamic table instead of plot
+  filtered_data <- afd
+  # Order pathdir factor according to results_dir vector
+  if("pathdir" %in% names(filtered_data) && length(results_dir) > 1) {
+    pathdir_levels <- basename(results_dir)
+    filtered_data$pathdir <- factor(filtered_data$pathdir, levels=pathdir_levels)
+  }
+  if(set_info$additional_set_id != "na") {
+    filtered_data[[set_info$additional_set_id]] <- tolower(filtered_data[[set_info$additional_set_id]])
+    filtered_data <- subset(filtered_data, get(set_info$additional_set_id) %in% additional_set_selected)
+  }
+  if(set_info$additional_set_id2 != "na") {
+    filtered_data[[set_info$additional_set_id2]] <- tolower(filtered_data[[set_info$additional_set_id2]])
+    filtered_data <- subset(filtered_data, get(set_info$additional_set_id2) %in% additional_set_selected2)
+  }
+  if(!is.null(regions) && "n" %in% names(filtered_data)) {
+    filtered_data <- subset(filtered_data, n %in% regions)
+  }
+  if(!is.null(scenarios)) {
+    filtered_data <- subset(filtered_data, file %in% scenarios)
+  }
+  return(DT::datatable(filtered_data, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE))
+} else {
+  # Show plot as usual
+  plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate_flag=FALSE, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
+  p <- create_gdx_plot(plot_data$data, variable, plot_data$unit_conv, regions, yearlim, ylim_zero, region_palette, results_dir, show_historical)
+  if(!is.null(p)) {
+    return(renderPlot({print(p)}, height = 600))
+  }
+}
 })
 
 output$Diagnostics <- renderPlot({

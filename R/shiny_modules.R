@@ -117,6 +117,15 @@ if(verbose) print(stringr::str_glue("Variable {variable} loaded."))
 # Check if variable has time dimension
 has_time_dim <- "t" %in% names(afd)
 
+# Order pathdir factor according to results_dir vector
+if("pathdir" %in% names(afd) && exists("results_dir", envir=.GlobalEnv)) {
+  results_dir <- get("results_dir", envir=.GlobalEnv)
+  if(length(results_dir) > 1) {
+    pathdir_levels <- basename(results_dir)
+    afd$pathdir <- factor(afd$pathdir, levels=pathdir_levels)
+  }
+}
+
 afd <- subset_by_additional_sets(afd, additional_set_id, additional_set_selected, additional_set_id2, additional_set_selected2)
 
 if(has_time_dim) {
@@ -164,6 +173,11 @@ if(nrow(afd)==0) return(NULL)
 # Filter data by year range BEFORE splitting
 afd <- subset(afd, year >= yearlim[1] & year <= yearlim[2])
 if(nrow(afd)==0) return(NULL)
+# Order pathdir factor according to results_dir vector
+if("pathdir" %in% names(afd) && length(results_dir) > 1) {
+  pathdir_levels <- basename(results_dir)
+  afd$pathdir <- factor(afd$pathdir, levels=pathdir_levels)
+}
 # Separate model and historical data
 model_data <- subset(afd, n %in% regions & !stringr::str_detect(file, "historical"))
 hist_data <- subset(afd, n %in% regions & stringr::str_detect(file, "historical"))

@@ -27,7 +27,7 @@ sidebar_ui <- sidebarPanel(
 )
     
 tabs_ui <- tabsetPanel(type = "tabs", id = "tabs",
-                tabPanel("gdxcompaR", id = "gdxcompaR", h2(textOutput("varname")),plotOutput("gdxcompaRplot", width = "100%", height = "80vh")),
+                tabPanel("gdxcompaR", id = "gdxcompaR", h2(textOutput("varname")),uiOutput("gdxcompaRplot")),
                 tabPanel("Diagnostics", id = "diagnostics", plotOutput("diagnostics", width = "100%", height = "80vh")),
                 tabPanel("Iterations", id = "iterationplot", plotOutput("iterationplot", width = "100%", height = "80vh")),
                 tabPanel("gdxcompaR MAP", id = "gdxcompaR_map", plotOutput("gdxcompaRmap", width = "100%", height = "80vh")),
