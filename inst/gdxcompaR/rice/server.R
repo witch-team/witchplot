@@ -94,11 +94,11 @@ if(!has_time) {
   }
   # If stacked plot is requested, use stacked area plot
   if(stacked_plot && length(regions) > 1){
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
   p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
   if(!is.null(scenarios) && length(scenarios)>1) p <- p + facet_wrap(. ~ file)
   } else if(regions[1]=="World" | length(regions)==1){
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
+  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
   if(ylim_zero) p <- p + ylim(0, NA)
   if(show_historical) {
     p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
@@ -106,7 +106,7 @@ if(!has_time) {
   }
   p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
   }else{
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
   if(show_historical) {
     p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
     p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=n, shape=file), size=4.0)
@@ -160,8 +160,15 @@ if(scen==scenarios[1]) afd_hist_temp <- afd_hist else afd_hist_temp <- rbind(afd
 afd <- rbind(afd, afd_hist)
 unit_conv <- unit_conversion(variable)
 afd$value <- afd$value * unit_conv$convert
-afd$year <- ttoyear(afd$t)
-p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+# Only calculate year if it doesn't already exist (from GDX file)
+if(!"year" %in% names(afd)) {
+  if("tlen" %in% names(afd)) {
+    afd$year <- ttoyear(afd$t, afd$tlen)
+  } else {
+    afd$year <- ttoyear(afd$t)
+  }
+}
+p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
 p_stacked <- p_stacked + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios)) p_stacked <- p_stacked + facet_wrap(. ~ file)
 if(nrow(afd)>0) print(p_stacked + labs(title=variable))
@@ -230,10 +237,14 @@ yearlim <- input$yearlim
 scenarios <- input$scenarios_selected
 elapsed <- get_witch("elapsed")
 if(!exists("elapsed")) elapsed <- data.frame(file=scenlist, value=0)
-Y <- get_witch("Y") %>% mutate(year=ttoyear(t))
-TATM <- get_witch("TATM") %>% mutate(year=ttoyear(t))
-MIU <- get_witch("MIU") %>% mutate(year=ttoyear(t))
-l <- get_witch("l") %>% mutate(year=ttoyear(t))
+Y <- get_witch("Y")
+if(!"year" %in% names(Y)) Y <- Y %>% mutate(year=if("tlen" %in% names(Y)) ttoyear(t, tlen) else ttoyear(t))
+TATM <- get_witch("TATM")
+if(!"year" %in% names(TATM)) TATM <- TATM %>% mutate(year=if("tlen" %in% names(TATM)) ttoyear(t, tlen) else ttoyear(t))
+MIU <- get_witch("MIU")
+if(!"year" %in% names(MIU)) MIU <- MIU %>% mutate(year=if("tlen" %in% names(MIU)) ttoyear(t, tlen) else ttoyear(t))
+l <- get_witch("l")
+if(!"year" %in% names(l)) l <- l %>% mutate(year=if("tlen" %in% names(l)) ttoyear(t, tlen) else ttoyear(t))
 # Order pathdir factor according to results_dir vector
 if("pathdir" %in% names(elapsed) && length(results_dir) > 1) {
   pathdir_levels <- basename(results_dir)

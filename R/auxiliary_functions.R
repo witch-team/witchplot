@@ -8,8 +8,22 @@ ttoyear <- function(t, tlen = NULL){
       tlen <- tstep
     }
   }
-  year = ((as.numeric(t)-1) * tlen + year0)
-  return(year)
+
+  # If tlen is a vector (variable timesteps), use proper cumulative sum
+  if(length(tlen) > 1 && length(tlen) == length(t)) {
+    # Variable timesteps: calculate year using cumulative sum
+    t_numeric <- as.numeric(t)
+    t_order <- order(t_numeric)
+    tlen_ordered <- tlen[t_order]
+    year_ordered <- year0 + c(0, cumsum(tlen_ordered[-length(tlen_ordered)]))
+    year <- year_ordered[order(t_order)]  # Restore original order
+    return(year)
+  } else {
+    # Constant timestep: use simple formula
+    if(length(tlen) > 1) tlen <- tlen[1]  # If tlen is vector of same values, use first
+    year = ((as.numeric(t)-1) * tlen + year0)
+    return(year)
+  }
 }
 
 yeartot <- function(year, tlen = NULL){

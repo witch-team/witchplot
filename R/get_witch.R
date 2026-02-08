@@ -32,6 +32,10 @@ get_witch <- function(variable_name,
             } else {
               tempdata$tlen <- tstep
             }
+            # Also try to add year parameter from GDX file if available
+            if("year" %in% gdxtools::all_items(mygdx)$parameters) {
+              tempdata <- tempdata %>% dplyr::left_join(mygdx["year"] %>% dplyr::rename(year=value), by = "t")
+            }
           }
           if(length(results_dir)>=1){
             tempdata$pathdir <- basename(current_pathdir)
