@@ -1,5 +1,5 @@
 extract_additional_sets <- function(afd, file_group_columns) {
-additional_sets <- setdiff(names(afd), c(file_group_columns, "pathdir", "t", "n", "value", "tlen"))
+additional_sets <- setdiff(names(afd), c(file_group_columns, "pathdir", "t", "n", "value", "tlen", "year"))
 if(length(additional_sets)==0) {
 list(additional_set_id="na", set_elements="na", additional_set_id2="na", set_elements2="na")
 } else if(length(additional_sets)==1) {

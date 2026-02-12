@@ -180,7 +180,15 @@ if("pathdir" %in% names(afd) && length(results_dir) > 1) {
   pathdir_levels <- basename(results_dir)
   afd$pathdir <- factor(afd$pathdir, levels=pathdir_levels)
 }
-afd <- subset(afd, ttoyear(t)>=yearlim[1] & ttoyear(t)<=yearlim[2])
+# Calculate year if not already present BEFORE filtering
+if(!"year" %in% names(afd)) {
+  if("tlen" %in% names(afd)) {
+    afd$year <- ttoyear(afd$t, afd$tlen)
+  } else {
+    afd$year <- ttoyear(afd$t)
+  }
+}
+afd <- subset(afd, year>=yearlim[1] & year<=yearlim[2])
 afd <- afd %>% filter(!is.na(value))
 afd <- subset(afd, file %in% c(scenarios, paste0(scenarios, "(b1)"), paste0(scenarios, "(b2)"), paste0(scenarios, "(b3)")) | str_detect(file, "historical") | str_detect(file, "valid"))
 if(show_historical) {
@@ -196,14 +204,6 @@ if(show_historical) {
 }
 unit_conv <- unit_conversion(variable)
 afd$value <- afd$value * unit_conv$convert
-# Only calculate year if it doesn't already exist (from GDX file)
-if(!"year" %in% names(afd)) {
-  if("tlen" %in% names(afd)) {
-    afd$year <- ttoyear(afd$t, afd$tlen)
-  } else {
-    afd$year <- ttoyear(afd$t)
-  }
-}
 p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", size=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
 p_stacked <- p_stacked + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios)) p_stacked <- p_stacked + facet_wrap(. ~ file)
