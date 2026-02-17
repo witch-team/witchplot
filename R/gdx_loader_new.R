@@ -156,6 +156,7 @@
     region_palette = region_info$palette,
     region_palette_short = region_info$palette_short,
     region_palette_long = region_info$palette_long,
+    rice_region_names = region_info$rice_region_names,
     stochastic_files = metadata$stochastic_files,
     var_descriptions = metadata$var_descriptions
   )
@@ -241,6 +242,19 @@
   # Get regions from GDX files
   regions <- .get_regions_from_gdx(filelist, results_dir)
 
+  # Try to read region long names from data_{reg_id}/n.inc element text
+  # (gdxtools does not expose set element text from GDX files)
+  rice_region_names <- tryCatch({
+    n_inc_path <- file.path(results_dir[1], paste0("data_", reg_id), "n.inc")
+    if(file.exists(n_inc_path)) {
+      lines   <- readLines(n_inc_path, warn=FALSE)
+      matches <- regmatches(lines, regexec("^\\s*(\\w+)\\s+'(.+)'", lines))
+      valid   <- Filter(function(x) length(x) == 3, matches)
+      if(length(valid) > 0)
+        setNames(sapply(valid, `[`, 3), sapply(valid, `[`, 2))
+      else NULL
+    } else NULL
+  }, error = function(e) NULL)
 
   # Create color palettes
   palette <- get_region_palette(regions, reg_id)
@@ -263,7 +277,8 @@
     reg_id = reg_id,
     palette = palette,
     palette_short = palette_short,
-    palette_long = palette_long
+    palette_long = palette_long,
+    rice_region_names = rice_region_names
   )
 }
 
@@ -316,5 +331,7 @@
   assign("region_palette_longnames", session_data$region_palette_long, envir = .GlobalEnv)
   assign("stochastic_files", session_data$stochastic_files, envir = .GlobalEnv)
   assign("all_var_descriptions", session_data$var_descriptions, envir = .GlobalEnv)
+  if(!is.null(session_data$rice_region_names))
+    assign("rice_region_names", session_data$rice_region_names, envir = .GlobalEnv)
   invisible(NULL)
 }

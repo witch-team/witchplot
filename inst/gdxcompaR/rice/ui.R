@@ -5,6 +5,7 @@ sidebar_ui <- sidebarPanel(
   uiOutput("select_scenarios"),
   uiOutput("select_variable"),
   uiOutput("choose_additional_set"),
+  uiOutput("choose_additional_set2"),
   uiOutput("select_regions"),
   sliderInput("yearlim", 
               "Time", 

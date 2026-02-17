@@ -3,16 +3,23 @@ verbose <- FALSE
 growth_rate <- FALSE
 list_of_variables <- get_gdx_variable_list_simple(results_dir, filelist)
 output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
-output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE)})
+output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)})
 output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")})
 variable_selected_reactive <- reactive({input$variable_selected})
 output$varname <- renderText({
-  var_text <- paste0("Variable: ", variable_selected_reactive())
+  var <- variable_selected_reactive()
+  if(is.null(var) || length(var) == 0) return("")
+  desc <- ""
+  if(exists("all_var_descriptions") && !is.null(var) && var %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == var]
+    if(length(d) > 0 && nchar(d[1]) > 0) desc <- paste0(" \u2014 ", d[1])
+  }
+  var_text <- paste0(var, desc)
   if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
-    var_text <- paste0(var_text, " - Element: ", paste(input$additional_set_id_selected, collapse=","))
+    var_text <- paste0(var_text, " [", paste(input$additional_set_id_selected, collapse=", "), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
-    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+    var_text <- paste0(var_text, " \u2014 ", input$regions_selected[1])
   }
   var_text
 })
@@ -37,16 +44,34 @@ variable <- variable_selected_reactive()
 if(is.null(variable)) variable <- list_of_variables[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
-selectInput("additional_set_id_selected", "Index 1:", set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
+if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+  d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+  if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+}
+selectInput("additional_set_id_selected", paste0(label1, ":"), set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+})
+output$choose_additional_set2 <- renderUI({
+if(set_info$additional_set_id2 == "na") return(NULL)
+sel2 <- input$additional_set_id_selected2
+size_elements2 <- min(length(set_info$set_elements2), 5)
+label2 <- set_info$additional_set_id2
+if(exists("all_var_descriptions") && label2 %in% all_var_descriptions$name) {
+  d <- all_var_descriptions$description[all_var_descriptions$name == label2]
+  if(length(d) > 0 && nchar(d[1]) > 0) label2 <- paste0(label2, " (", d[1], ")")
+}
+selectInput("additional_set_id_selected2", paste0(label2, ":"), set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected
+additional_set_selected2 <- input$additional_set_id_selected2
 regions <- input$regions_selected
 scenarios <- input$scenarios_selected
 if(is.null(regions)) regions <- display_regions
 if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
 if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
-plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, NULL, NULL, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
+if(set_info$additional_set_id2 != "na" && (is.null(additional_set_selected2) || additional_set_selected2[1] == "na")) additional_set_selected2 <- set_info$set_elements2[1]
+plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
 afd <- plot_data$data
 unit_conv <- plot_data$unit_conv
 if(growth_rate){
@@ -91,16 +116,34 @@ variable <- variable_selected_reactive()
 if(is.null(variable)) variable <- list_of_variables[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
-selectInput("additional_set_id_selected", "Index 1:", set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
+if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+  d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+  if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+}
+selectInput("additional_set_id_selected", paste0(label1, ":"), set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+})
+output$choose_additional_set2 <- renderUI({
+if(set_info$additional_set_id2 == "na") return(NULL)
+sel2 <- input$additional_set_id_selected2
+size_elements2 <- min(length(set_info$set_elements2), 5)
+label2 <- set_info$additional_set_id2
+if(exists("all_var_descriptions") && label2 %in% all_var_descriptions$name) {
+  d <- all_var_descriptions$description[all_var_descriptions$name == label2]
+  if(length(d) > 0 && nchar(d[1]) > 0) label2 <- paste0(label2, " (", d[1], ")")
+}
+selectInput("additional_set_id_selected2", paste0(label2, ":"), set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected
+additional_set_selected2 <- input$additional_set_id_selected2
 regions <- input$regions_selected
 scenarios <- input$scenarios_selected
 if(is.null(regions)) regions <- display_regions
 if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
 if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
-afd <- subset_by_additional_sets(afd, set_info$additional_set_id, additional_set_selected, NULL, NULL)
+if(set_info$additional_set_id2 != "na" && (is.null(additional_set_selected2) || additional_set_selected2[1] == "na")) additional_set_selected2 <- set_info$set_elements2[1]
+afd <- subset_by_additional_sets(afd, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2)
 afd <- subset(afd, ttoyear(t)>=yearlim[1] & ttoyear(t)<=yearlim[2])
 afd <- afd %>% filter(!is.na(value))
 afd <- subset(afd, file %in% c(scenarios, paste0(scenarios, "(b1)"), paste0(scenarios, "(b2)"), paste0(scenarios, "(b3)")) | str_detect(file, "historical") | str_detect(file, "valid"))

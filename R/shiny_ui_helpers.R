@@ -1,18 +1,31 @@
 create_scenario_selector <- function(scenlist) {
   selectInput(inputId="scenarios_selected", label="Scenarios:", choices=unname(scenlist), size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=unname(scenlist))
 }
-create_variable_selector <- function(list_of_variables, default_var="Q_EMI", use_picker=TRUE) {
+create_variable_selector <- function(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=NULL) {
   if(use_picker) {
-    pickerInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, selected=default_var, options=list(`live-search`=TRUE))
+    if(!is.null(descriptions) && nrow(descriptions) > 0) {
+      desc_text <- descriptions$description[match(list_of_variables, descriptions$name)]
+      desc_text[is.na(desc_text)] <- ""
+      pickerInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, selected=default_var,
+                  options=list(`live-search`=TRUE), choicesOpt=list(subtext=desc_text))
+    } else {
+      pickerInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, selected=default_var, options=list(`live-search`=TRUE))
+    }
   } else {
     selectInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, size=1, selectize=FALSE, multiple=FALSE, selected=default_var)
   }
 }
 create_region_selector <- function(witch_regions, include_aggregates=c("World", "EU"), default_region="World") {
-  if(length(include_aggregates)>0) {
-    regions_for_selector <- list(Aggregate=as.list(include_aggregates), `Native regions`=witch_regions)
+  region_names_map <- if(exists("rice_region_names")) rice_region_names else witch_region_longnames
+  long_names <- region_names_map[witch_regions]
+  display_labels <- ifelse(!is.na(long_names),
+                           paste0(long_names, " (", witch_regions, ")"),
+                           witch_regions)
+  named_regions <- setNames(as.list(witch_regions), display_labels)
+  if(length(include_aggregates) > 0) {
+    regions_for_selector <- list(Aggregate=as.list(setNames(include_aggregates, include_aggregates)), `Native regions`=named_regions)
   } else {
-    regions_for_selector <- c(witch_regions, include_aggregates)
+    regions_for_selector <- named_regions
   }
   selectInput(inputId="regions_selected", label="Regions:", regions_for_selector, size=max(10, length(regions_for_selector)), selectize=FALSE, multiple=TRUE, selected=default_region)
 }

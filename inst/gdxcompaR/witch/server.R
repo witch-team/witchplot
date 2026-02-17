@@ -9,7 +9,7 @@ get_witch <- function(variable, field){return(allvariables[[variable]])}
 }
 list_of_variables <- get_gdx_variable_list(results_dir, filelist, filter_time_dependent=FALSE)
 output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
-output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE)})
+output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)})
 output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")})
 variable_input <- reactive({return(input$variable_selected)})
 
@@ -39,26 +39,42 @@ output$choose_additional_set <- renderUI({
   }
 
   size_elements <- min(length(set_info$set_elements), 5)
-  selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+  label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
+  if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+    if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+  }
+  selectInput(inputId="additional_set_id_selected", label=paste0(label1, ":"), choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
 })
 
 output$choose_additional_set2 <- renderUI({
   set_info <- set_info_reactive()
   sel2 <- input$additional_set_id_selected2
   size_elements2 <- min(length(set_info$set_elements2), 5)
-  selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+  label2 <- if(set_info$additional_set_id2 != "na") set_info$additional_set_id2 else "Index 2"
+  if(exists("all_var_descriptions") && label2 %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == label2]
+    if(length(d) > 0 && nchar(d[1]) > 0) label2 <- paste0(label2, " (", d[1], ")")
+  }
+  selectInput(inputId="additional_set_id_selected2", label=paste0(label2, ":"), choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 
 output$varname <- renderText({
-  var_text <- paste0("Variable: ", variable_input())
+  var <- variable_input()
+  desc <- ""
+  if(exists("all_var_descriptions") && var %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == var]
+    if(length(d) > 0 && nchar(d[1]) > 0) desc <- paste0(" \u2014 ", d[1])
+  }
+  var_text <- paste0(var, desc)
   if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
-    var_text <- paste0(var_text, " - Element: ", str_trunc(paste(input$additional_set_id_selected, collapse=","), 20))
+    var_text <- paste0(var_text, " [", str_trunc(paste(input$additional_set_id_selected, collapse=", "), 20), "]")
   }
   if(!is.null(input$additional_set_id_selected2) && input$additional_set_id_selected2[1] != "na") {
-    var_text <- paste0(var_text, " - Element2: ", str_trunc(paste(input$additional_set_id_selected2, collapse=","), 20))
+    var_text <- paste0(var_text, " [", str_trunc(paste(input$additional_set_id_selected2, collapse=", "), 20), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
-    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+    var_text <- paste0(var_text, " \u2014 ", input$regions_selected[1])
   }
   var_text
 })
