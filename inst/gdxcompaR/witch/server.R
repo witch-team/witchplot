@@ -67,11 +67,21 @@ output$varname <- renderText({
     if(length(d) > 0 && nchar(d[1]) > 0) desc <- paste0(" \u2014 ", d[1])
   }
   var_text <- paste0(var, desc)
-  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
-    var_text <- paste0(var_text, " [", str_trunc(paste(input$additional_set_id_selected, collapse=", "), 20), "]")
+  set_info <- set_info_reactive()
+  # Apply same fallback logic as renderPlot so the title always reflects what is shown
+  eff_sel <- input$additional_set_id_selected
+  if(is.null(eff_sel) || eff_sel[1] == "na" || !(eff_sel[1] %in% set_info$set_elements)) {
+    eff_sel <- set_info$set_elements[1]
   }
-  if(!is.null(input$additional_set_id_selected2) && input$additional_set_id_selected2[1] != "na") {
-    var_text <- paste0(var_text, " [", str_trunc(paste(input$additional_set_id_selected2, collapse=", "), 20), "]")
+  if(set_info$additional_set_id != "na") {
+    var_text <- paste0(var_text, " [", str_trunc(paste(eff_sel, collapse=", "), 20), "]")
+  }
+  eff_sel2 <- input$additional_set_id_selected2
+  if(is.null(eff_sel2) || eff_sel2[1] == "na" || !(eff_sel2[1] %in% set_info$set_elements2)) {
+    eff_sel2 <- set_info$set_elements2[1]
+  }
+  if(set_info$additional_set_id2 != "na") {
+    var_text <- paste0(var_text, " [", str_trunc(paste(eff_sel2, collapse=", "), 20), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
     var_text <- paste0(var_text, " \u2014 ", input$regions_selected[1])

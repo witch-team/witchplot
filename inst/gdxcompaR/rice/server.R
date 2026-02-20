@@ -6,6 +6,13 @@ output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
 output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)})
 output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")})
 variable_selected_reactive <- reactive({input$variable_selected})
+set_info_reactive <- reactive({
+  variable <- variable_selected_reactive()
+  if(is.null(variable)) variable <- list_of_variables[1]
+  field_show <- input$field
+  afd <- get_witch(variable, , field=field_show)
+  extract_additional_sets(afd, file_group_columns)
+})
 output$varname <- renderText({
   var <- variable_selected_reactive()
   if(is.null(var) || length(var) == 0) return("")
@@ -15,8 +22,19 @@ output$varname <- renderText({
     if(length(d) > 0 && nchar(d[1]) > 0) desc <- paste0(" \u2014 ", d[1])
   }
   var_text <- paste0(var, desc)
-  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
-    var_text <- paste0(var_text, " [", paste(input$additional_set_id_selected, collapse=", "), "]")
+  set_info <- set_info_reactive()
+  # Apply same fallback logic as renderPlot so the title always reflects what is shown
+  eff_sel <- input$additional_set_id_selected
+  if(is.null(eff_sel) || (set_info$additional_set_id != "na" && (eff_sel[1] == "na" || !(eff_sel[1] %in% set_info$set_elements)))) {
+    eff_sel <- set_info$set_elements[1]
+  }
+  if(set_info$additional_set_id != "na") {
+    var_text <- paste0(var_text, " [", paste(eff_sel, collapse=", "), "]")
+  }
+  if(set_info$additional_set_id2 != "na") {
+    eff_sel2 <- input$additional_set_id_selected2
+    if(is.null(eff_sel2) || eff_sel2[1] == "na") eff_sel2 <- set_info$set_elements2[1]
+    var_text <- paste0(var_text, " [", paste(eff_sel2, collapse=", "), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
     var_text <- paste0(var_text, " \u2014 ", input$regions_selected[1])
