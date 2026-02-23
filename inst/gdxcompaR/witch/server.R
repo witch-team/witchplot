@@ -1,4 +1,18 @@
 shinyServer(function(input, output, session) {
+# Re-initialize on session start to pick up new files (supports F5)
+.initialize_witchplot_session()
+
+# Reactive trigger for file refresh
+refresh_trigger <- reactiveVal(0)
+
+# Observe refresh button
+observeEvent(input$refresh_files, {
+  withProgress(message = 'Refreshing GDX files...', value = 0, {
+    .initialize_witchplot_session()
+    refresh_trigger(refresh_trigger() + 1)
+  })
+})
+
 dataBrowserServer("data_browser")  # DATA_BROWSER
 verbose <- FALSE
 if(deploy_online){
@@ -8,18 +22,38 @@ require(shinyWidgets)
 add_historical_values <- function(x, varname, iiasadb, verbose){return(x)}
 get_witch <- function(variable, field){return(allvariables[[variable]])}
 }
-list_of_variables <- get_gdx_variable_list(results_dir, filelist, filter_time_dependent=FALSE)
-output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
-output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)})
-output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")})
+
+# Make list of variables reactive so it updates on refresh
+list_of_variables_reactive <- reactive({
+  refresh_trigger()
+  get_gdx_variable_list(results_dir, filelist, filter_time_dependent=FALSE)
+})
+
+output$select_scenarios <- renderUI({
+  refresh_trigger()
+  create_scenario_selector(scenlist)
+})
+
+output$select_variable <- renderUI({
+  list_of_variables <- list_of_variables_reactive()
+  create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)
+})
+
+output$select_regions <- renderUI({
+  refresh_trigger()
+  create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")
+})
+
 variable_input <- reactive({return(input$variable_selected)})
 
 # PERFORMANCE FIX: Move index selectors OUTSIDE renderPlot
 # This prevents them from re-rendering every time the plot updates
 # Only update when variable changes
 set_info_reactive <- reactive({
+  refresh_trigger()
   variable <- variable_input()
-  if(is.null(variable)) variable <- list_of_variables[1]
+  list_of_variables <- list_of_variables_reactive()
+  if(is.null(variable)) variable <- list_of_variables_reactive()[1]
   field_show <- input$field
   afd <- get_witch(variable, , field=field_show)
   extract_additional_sets(afd, file_group_columns)
@@ -101,7 +135,7 @@ show_historical <- input$add_historical
 ylim_zero <- input$ylim_zero
 field_show <- input$field
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 set_info <- set_info_reactive()
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected

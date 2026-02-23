@@ -30,7 +30,10 @@ shinyUI(fluidPage(
                       value = FALSE)),
     div(style="display:inline-block",checkboxInput("growth_rate", "Show growth rates", value = F)),
     div(style="display:inline-block",radioButtons("field", "", choiceNames = c("l","up","lo"), choiceValues = c("l","up","lo"), inline = TRUE)),
-    div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot"))
+    div(style="margin-top: 10px;",
+      div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot")),
+      div(style="display:inline-block",actionButton("refresh_files", "Refresh Files", icon=icon("sync")))
+    )
 ),
     
 

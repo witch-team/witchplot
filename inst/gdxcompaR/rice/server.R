@@ -1,19 +1,55 @@
 shinyServer(function(input, output, session) {
+# Re-initialize on session start to pick up new files (supports F5)
+.initialize_witchplot_session()
+
+# Reactive trigger for file refresh
+refresh_trigger <- reactiveVal(0)
+
+# Observe refresh button
+observeEvent(input$refresh_files, {
+  withProgress(message = 'Refreshing GDX files...', value = 0, {
+    .initialize_witchplot_session()
+    refresh_trigger(refresh_trigger() + 1)
+  })
+})
+
 dataBrowserServer("data_browser")  # DATA_BROWSER
 verbose <- FALSE
 growth_rate <- FALSE
-list_of_variables <- get_gdx_variable_list_simple(results_dir, filelist)
-output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
-output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)})
-output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")})
+
+# Make list of variables reactive so it updates on refresh
+list_of_variables_reactive <- reactive({
+  refresh_trigger()
+  get_gdx_variable_list_simple(results_dir, filelist)
+})
+
+output$select_scenarios <- renderUI({
+  refresh_trigger()
+  create_scenario_selector(scenlist)
+})
+
+output$select_variable <- renderUI({
+  list_of_variables <- list_of_variables_reactive()
+  create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)
+})
+
+output$select_regions <- renderUI({
+  refresh_trigger()
+  create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")
+})
+
 variable_selected_reactive <- reactive({input$variable_selected})
+
 set_info_reactive <- reactive({
+  refresh_trigger()
   variable <- variable_selected_reactive()
-  if(is.null(variable)) variable <- list_of_variables[1]
+  list_of_variables <- list_of_variables_reactive()
+  if(is.null(variable)) variable <- list_of_variables_reactive()[1]
   field_show <- input$field
   afd <- get_witch(variable, , field=field_show)
   extract_additional_sets(afd, file_group_columns)
 })
+
 output$varname <- renderText({
   var <- variable_selected_reactive()
   if(is.null(var) || length(var) == 0) return("")
@@ -54,13 +90,13 @@ field_show <- input$field
 growth_rate <- input$growth_rate
 stacked_plot <- input$stacked_plot
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)  # Always loads with historical if add_historical was TRUE at startup
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
 output$choose_additional_set <- renderUI({
 variable <- variable_selected_reactive()
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
 label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
@@ -126,13 +162,13 @@ show_historical <- input$add_historical  # Checkbox controls plot visibility
 ylim_zero <- input$ylim_zero
 field_show <- input$field
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
 output$choose_additional_set <- renderUI({
 variable <- variable_selected_reactive()
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
 label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
@@ -188,7 +224,7 @@ field_show <- input$field
 growth_rate <- input$growth_rate
 stacked_plot <- input$stacked_plot
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)

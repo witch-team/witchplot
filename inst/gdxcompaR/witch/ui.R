@@ -51,7 +51,10 @@ sidebar_ui <- sidebarPanel(
       tags$label("Show:", style="display:inline-block; margin-right: 5px;"),
       div(style="display:inline-block", radioButtons("field", "", choiceNames = c("l","up","lo"), choiceValues = c("l","up","lo"), inline = TRUE))
     ),
-    div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot"))
+    div(style="margin-top: 10px;",
+      div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot")),
+      div(style="display:inline-block",actionButton("refresh_files", "Refresh Files", icon=icon("sync")))
+    )
   ),
   # Data browser sidebar                                           # DATA_BROWSER
   conditionalPanel("input.app_mode == 'data'",                    # DATA_BROWSER

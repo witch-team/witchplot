@@ -3,13 +3,16 @@ create_scenario_selector <- function(scenlist) {
 }
 create_variable_selector <- function(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=NULL) {
   if(use_picker) {
+    space_tokens <- gsub("_", " ", list_of_variables)
+    picker_opts <- list(`live-search`=TRUE, `live-search-style`='contains')
     if(!is.null(descriptions) && nrow(descriptions) > 0) {
       desc_text <- descriptions$description[match(list_of_variables, descriptions$name)]
       desc_text[is.na(desc_text)] <- ""
       pickerInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, selected=default_var,
-                  options=list(`live-search`=TRUE), choicesOpt=list(subtext=desc_text))
+                  options=picker_opts, choicesOpt=list(subtext=desc_text, tokens=space_tokens))
     } else {
-      pickerInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, selected=default_var, options=list(`live-search`=TRUE))
+      pickerInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, selected=default_var,
+                  options=picker_opts, choicesOpt=list(tokens=space_tokens))
     }
   } else {
     selectInput(inputId="variable_selected", label="Variable:", choices=list_of_variables, size=1, selectize=FALSE, multiple=FALSE, selected=default_var)
