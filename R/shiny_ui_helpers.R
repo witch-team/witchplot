@@ -1,5 +1,18 @@
 create_scenario_selector <- function(scenlist) {
-  selectInput(inputId="scenarios_selected", label="Scenarios:", choices=unname(scenlist), size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=unname(scenlist))
+  scenarios <- unname(scenlist)
+  groups <- if (exists("scenlist_groups", envir = .GlobalEnv)) get("scenlist_groups", envir = .GlobalEnv) else NULL
+  if (!is.null(groups)) {
+    grp_labels <- groups[names(scenlist)]
+    grp_labels[is.na(grp_labels)] <- ""
+    if (any(grp_labels != "")) {
+      grp_labels[grp_labels == ""] <- "(root)"
+      grouped <- split(scenarios, grp_labels)
+      return(selectInput(inputId="scenarios_selected", label="Scenarios:", choices=grouped,
+                         size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=scenarios))
+    }
+  }
+  selectInput(inputId="scenarios_selected", label="Scenarios:", choices=scenarios,
+              size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=scenarios)
 }
 create_variable_selector <- function(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=NULL) {
   if(use_picker) {

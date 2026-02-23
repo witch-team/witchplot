@@ -37,7 +37,7 @@ tryCatch({
     "results_dir", "restrict_files", "exclude_files", "removepattern",
     "deploy_online", "figure_format", "add_historical", "write_plotdata_csv",
     "reg_id", "year0", "tstep", "yearmin", "yearmax",
-    "filelist", "scenlist", "file_group_columns",
+    "filelist", "scenlist", "scenlist_groups", "file_group_columns",
     "witch_regions", "display_regions", "region_palette",
     "region_palette_specific_short", "region_palette_longnames",
     "stochastic_files", "all_var_descriptions",
