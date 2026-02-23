@@ -1,4 +1,5 @@
 shinyServer(function(input, output, session) {
+dataBrowserServer("data_browser")  # DATA_BROWSER
 verbose <- FALSE
 if(deploy_online){
 suppressPackageStartupMessages(require(tidyverse))

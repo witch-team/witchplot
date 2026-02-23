@@ -9,40 +9,54 @@ if(!exists("results_dir")){
   load(file="allvariables.Rdata", envir = .GlobalEnv)
   #Install and load packages
   require_package <- function(package){
-    suppressPackageStartupMessages(require(package,character.only=T, quietly = TRUE))  
+    suppressPackageStartupMessages(require(package,character.only=T, quietly = TRUE))
   }
   pkgs <- c('data.table', 'stringr', 'countrycode', 'ggplot2', 'ggpubr', 'scales', 'RColorBrewer', 'dplyr', 'openxlsx', 'gsubfn', 'tidyr', 'rlang', 'shiny', 'shinythemes', 'plotly', 'purrr', 'reldist', 'tidytidbits', 'forcats', 'arrow')
   res <- lapply(pkgs, require_package)
   deploy_online <<- T
-} 
+}
 
 header_ui <- headerPanel("WITCH gdxcompaR")
 
 sidebar_ui <- sidebarPanel(
-  uiOutput("select_scenarios"),
-  uiOutput("select_variable"),
-  uiOutput("choose_additional_set"),
-  uiOutput("choose_additional_set2"),
-  uiOutput("select_regions"),
-  sliderInput("yearlim", 
-              "Time", 
-              min = 1970,
-              max = 2150,
-              value = c(1990,2100),
-              step = 5),
-  div(style="display:inline-block",
-      checkboxInput("add_historical",
-                    "Show historical",
-                    value = if(exists("add_historical")) add_historical else TRUE)),
-  div(style="display:inline-block",
-      checkboxInput("ylim_zero",
-                    "ymin=0",
-                    value = FALSE)),
-  tags$div(style="display:inline-block",
-    tags$label("Show:", style="display:inline-block; margin-right: 5px;"),
-    div(style="display:inline-block", radioButtons("field", "", choiceNames = c("l","up","lo"), choiceValues = c("l","up","lo"), inline = TRUE))
+  # Mode toggle                                                    # DATA_BROWSER
+  shinyWidgets::radioGroupButtons(                                 # DATA_BROWSER
+    "app_mode", NULL,                                              # DATA_BROWSER
+    choices = c("Scenarios" = "scenarios", "Data" = "data"),       # DATA_BROWSER
+    selected = "scenarios", justified = TRUE, size = "sm"          # DATA_BROWSER
+  ),                                                               # DATA_BROWSER
+  hr(),
+  # Scenarios sidebar
+  conditionalPanel("input.app_mode == 'scenarios'",
+    uiOutput("select_scenarios"),
+    uiOutput("select_variable"),
+    uiOutput("choose_additional_set"),
+    uiOutput("choose_additional_set2"),
+    uiOutput("select_regions"),
+    sliderInput("yearlim",
+                "Time",
+                min = 1970,
+                max = 2150,
+                value = c(1990,2100),
+                step = 5),
+    div(style="display:inline-block",
+        checkboxInput("add_historical",
+                      "Show historical",
+                      value = if(exists("add_historical")) add_historical else TRUE)),
+    div(style="display:inline-block",
+        checkboxInput("ylim_zero",
+                      "ymin=0",
+                      value = FALSE)),
+    tags$div(style="display:inline-block",
+      tags$label("Show:", style="display:inline-block; margin-right: 5px;"),
+      div(style="display:inline-block", radioButtons("field", "", choiceNames = c("l","up","lo"), choiceValues = c("l","up","lo"), inline = TRUE))
+    ),
+    div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot"))
   ),
-  div(style="display:inline-block",actionButton("button_saveplotdata", "Save Plot"))
+  # Data browser sidebar                                           # DATA_BROWSER
+  conditionalPanel("input.app_mode == 'data'",                    # DATA_BROWSER
+    dataBrowserSidebarUI("data_browser")                          # DATA_BROWSER
+  )                                                                # DATA_BROWSER
 )
 
 tabs_ui <- tabsetPanel(type = "tabs", id = "tabs",
@@ -63,18 +77,19 @@ tabs_ui <- tabsetPanel(type = "tabs", id = "tabs",
 )
 
 ui <- fluidPage(
-  
+
   pageWithSidebar(
-    
-    # Application title
+
     header_ui,
-    
-    # Sidebar with a slider of years and set elements
+
     sidebar_ui,
-    
-    # Show the plots
-    mainPanel(tabs_ui)
-    
+
+    mainPanel(
+      conditionalPanel("input.app_mode == 'scenarios'", tabs_ui),          # DATA_BROWSER
+      conditionalPanel("input.app_mode == 'data'",                         # DATA_BROWSER
+                       dataBrowserMainUI("data_browser"))                   # DATA_BROWSER
+    )
+
 ))
 
 shinyUI(ui)

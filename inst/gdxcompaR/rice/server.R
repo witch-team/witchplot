@@ -1,4 +1,5 @@
 shinyServer(function(input, output, session) {
+dataBrowserServer("data_browser")  # DATA_BROWSER
 verbose <- FALSE
 growth_rate <- FALSE
 list_of_variables <- get_gdx_variable_list_simple(results_dir, filelist)
