@@ -45,24 +45,11 @@ sidebar_ui <- sidebarPanel(
 )
 
 tabs_ui <- tabsetPanel(type = "tabs", id = "tabs",
-                tabPanel("gdxcompaR", id = "gdxcompaR", h2(textOutput("varname")),
-                         conditionalPanel("output.has_time_dim",
-                           div(style = "position:relative;",
-                             plotOutput("gdxcompaRplot", width = "100%", height = "80vh",
-                                        hover = hoverOpts("plot_hover", delay = 80, delayType = "debounce")),
-                             uiOutput("hover_info")
-                           )
-                         ),
-                         conditionalPanel("!output.has_time_dim",
-                           div(style = "overflow-y:auto; max-height:80vh; padding:10px;",
-                             tableOutput("non_time_table")
-                           )
-                         )),
+                tabPanel("gdxcompaR", id = "gdxcompaR", h2(textOutput("varname")), uiOutput("gdxcompaRplot")),
                 tabPanel("Diagnostics", id = "diagnostics", plotOutput("diagnostics", width = "100%", height = "80vh")),
                 tabPanel("Iterations", id = "iterationplot", plotOutput("iterationplot", width = "100%", height = "80vh")),
                 tabPanel("gdxcompaR MAP", id = "gdxcompaR_map", plotOutput("gdxcompaRmap", width = "100%", height = "80vh")),
-                tabPanel("Temperature Map", id = "tatm_plot", plotOutput("tatmplot", width = "100%", height = "80vh")),
-                tabPanel("Table", id = "results_table", br(), div(style = "overflow-y:auto; max-height:80vh; padding:10px;", tableOutput("results_data_table")))
+                tabPanel("Temperature Map", id = "tatm_plot", plotOutput("tatmplot", width = "100%", height = "80vh"))
 )
 
 ui <- fluidPage(

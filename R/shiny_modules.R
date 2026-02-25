@@ -1,5 +1,5 @@
 extract_additional_sets <- function(afd, file_group_columns) {
-additional_sets <- setdiff(names(afd), c(file_group_columns, "pathdir", "t", "n", "value", "tlen"))
+additional_sets <- setdiff(names(afd), c(file_group_columns, "pathdir", "t", "n", "value", "tlen", "year"))
 if(length(additional_sets)==0) {
 list(additional_set_id="na", set_elements="na", additional_set_id2="na", set_elements2="na")
 } else if(length(additional_sets)==1) {
@@ -117,18 +117,41 @@ if(verbose) print(stringr::str_glue("Variable {variable} loaded."))
 # Check if variable has time dimension
 has_time_dim <- "t" %in% names(afd)
 
+# Order pathdir factor according to results_dir vector
+if("pathdir" %in% names(afd) && exists("results_dir", envir=.GlobalEnv)) {
+  results_dir <- get("results_dir", envir=.GlobalEnv)
+  if(length(results_dir) > 1) {
+    pathdir_levels <- basename(results_dir)
+    afd$pathdir <- factor(afd$pathdir, levels=pathdir_levels)
+  }
+}
+
 afd <- subset_by_additional_sets(afd, additional_set_id, additional_set_selected, additional_set_id2, additional_set_selected2)
 
 if(has_time_dim) {
   # Process time-series data
-  # Add year column first, using tlen if it exists in the dataframe
-  if("tlen" %in% names(afd)) {
-    # Handle cases where tlen might be NA (e.g., historical data merged without tlen)
-    # For rows with NA tlen, use the default tstep
-    tlen_vec <- ifelse(!is.na(afd$tlen), afd$tlen, tstep)
-    afd$year <- ((as.numeric(afd$t)-1) * tlen_vec + year0)
-  } else {
-    afd$year <- ttoyear(afd$t)
+  # Add year column if not already present
+  if(!"year" %in% names(afd)) {
+    # Year column not present, need to calculate it
+    if("tlen" %in% names(afd)) {
+      # When tlen varies over time, we need to calculate year properly
+      # Create a unique mapping from t to year using cumsum
+      tlen_mapping <- afd %>%
+        dplyr::select(t, tlen) %>%
+        dplyr::distinct() %>%
+        dplyr::arrange(as.numeric(t)) %>%
+        dplyr::mutate(
+          tlen = ifelse(is.na(tlen), tstep, tlen),
+          # Calculate cumulative time: start year + sum of all previous tlen values
+          year = year0 + c(0, cumsum(tlen[-dplyr::n()]))
+        ) %>%
+        dplyr::select(t, year)
+      # Join the year mapping back to the data
+      afd <- afd %>% dplyr::left_join(tlen_mapping, by = "t")
+    } else {
+      # No tlen, use simple conversion
+      afd$year <- ttoyear(afd$t)
+    }
   }
 
   if(time_filter) {
@@ -164,6 +187,11 @@ if(nrow(afd)==0) return(NULL)
 # Filter data by year range BEFORE splitting
 afd <- subset(afd, year >= yearlim[1] & year <= yearlim[2])
 if(nrow(afd)==0) return(NULL)
+# Order pathdir factor according to results_dir vector
+if("pathdir" %in% names(afd) && length(results_dir) > 1) {
+  pathdir_levels <- basename(results_dir)
+  afd$pathdir <- factor(afd$pathdir, levels=pathdir_levels)
+}
 # Separate model and historical data
 model_data <- subset(afd, n %in% regions & !stringr::str_detect(file, "historical"))
 hist_data <- subset(afd, n %in% regions & stringr::str_detect(file, "historical"))

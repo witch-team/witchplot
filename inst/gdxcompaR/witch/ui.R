@@ -64,7 +64,7 @@ sidebar_ui <- sidebarPanel(
 
 tabs_ui <- tabsetPanel(type = "tabs", id = "tabs",
 
-                       tabPanel("gdxcompaR", id = "gdxcompaR", h3(textOutput("varname")),plotOutput("gdxompaRplot", width = "100%", height = "80vh")),
+                       tabPanel("gdxcompaR", id = "gdxcompaR", h3(textOutput("varname")),uiOutput("gdxompaRplot")),
                        tabPanel("Diagnostics", id = "Diagnostics", h2("Diagnostics of model runs"),plotOutput("Diagnostics", width = "100%", height = "80vh")),
                        tabPanel("Energy Mix", id = "Energy Mix",
                                 div(style="display:inline-block",selectInput("mix_y_value_selected", "Plot value or share:", c("value", "share") , size=1, selectize = F, multiple = F, selected = "value")),
