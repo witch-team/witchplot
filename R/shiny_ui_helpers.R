@@ -5,7 +5,8 @@ create_scenario_selector <- function(scenlist) {
     grp_labels <- groups[names(scenlist)]
     grp_labels[is.na(grp_labels)] <- ""
     if (any(grp_labels != "")) {
-      grp_labels[grp_labels == ""] <- "(root)"
+      root_label <- if (exists("results_dir", envir = .GlobalEnv)) basename(get("results_dir", envir = .GlobalEnv)[1]) else "root"
+      grp_labels[grp_labels == ""] <- root_label
       grouped <- split(scenarios, grp_labels)
       return(selectInput(inputId="scenarios_selected", label="Scenarios:", choices=grouped,
                          size=min(length(scenlist), 10), selectize=FALSE, multiple=TRUE, selected=scenarios))
