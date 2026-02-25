@@ -40,8 +40,8 @@
     stop("No GDX files found in: ", results_dir)
   }
 
-  # Filter on basename: must start with "results_"
-  all_files <- all_files[stringr::str_starts(basename(all_files), "results_")]
+  # Filter on basename: must contain "results_" (matches old str_detect behaviour)
+  all_files <- all_files[stringr::str_detect(basename(all_files), "results_")]
 
   if (length(all_files) == 0) {
     stop("No GDX files starting with 'results_' found in: ", results_dir)
