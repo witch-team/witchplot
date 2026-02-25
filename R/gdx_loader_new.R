@@ -95,6 +95,20 @@
     if (!is.null(removepattern) && removepattern != "") {
       scenario_names <- gsub(paste(removepattern, collapse = "|"), "", basenames)
     }
+    # Disambiguate duplicate names by prepending the subfolder group label
+    dups <- duplicated(scenario_names) | duplicated(scenario_names, fromLast = TRUE)
+    if (any(dups)) {
+      group_labels <- sapply(filelist, function(f) {
+        parts <- strsplit(f, "/", fixed = TRUE)[[1]]
+        if (length(parts) >= 3) parts[length(parts) - 1L]
+        else if (length(parts) == 2) parts[1L]
+        else ""
+      })
+      for (i in which(dups)) {
+        if (nchar(group_labels[i]) > 0)
+          scenario_names[i] <- paste0(scenario_names[i], " [", group_labels[i], "]")
+      }
+    }
     scenlist <- setNames(scenario_names, filelist)
   }
 

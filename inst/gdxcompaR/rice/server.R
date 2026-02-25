@@ -4,6 +4,8 @@ shinyServer(function(input, output, session) {
 
 # Reactive trigger for file refresh
 refresh_trigger <- reactiveVal(0)
+plot_data_rv <- reactiveVal(NULL)
+has_time_dim_rv <- reactiveVal(TRUE)
 
 # Observe refresh button
 observeEvent(input$refresh_files, {
@@ -95,11 +97,12 @@ afd <- get_witch(variable, , field=field_show)  # Always loads with historical i
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
 output$choose_additional_set <- renderUI({
+if(set_info$additional_set_id == "na") return(NULL)
 variable <- variable_selected_reactive()
 if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
-label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
+label1 <- set_info$additional_set_id
 if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
   d <- all_var_descriptions$description[all_var_descriptions$name == label1]
   if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
@@ -129,17 +132,32 @@ if(set_info$additional_set_id2 != "na" && (is.null(additional_set_selected2) || 
 plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
 afd <- plot_data$data
 unit_conv <- plot_data$unit_conv
+if (!isTRUE(plot_data$has_time_dim)) {
+  has_time_dim_rv(FALSE)
+  afd_h <- as.data.frame(afd)
+  afd_h$.hover_year <- NA_real_
+  plot_data_rv(afd_h)
+  return(invisible(NULL))
+}
+has_time_dim_rv(TRUE)
+{
+  afd_h <- as.data.frame(afd)
+  yr <- if ("t" %in% names(afd_h)) suppressWarnings(as.numeric(ttoyear(afd_h$t))) else rep(NA_real_, nrow(afd_h))
+  if ("year" %in% names(afd_h)) yr <- ifelse(is.na(yr), afd_h$year, yr)
+  afd_h$.hover_year <- yr
+  plot_data_rv(afd_h)
+}
 if(growth_rate){
 unit_conv$unit <- " % p.a."
 unit_conv$convert <- 1
 }
 # If stacked plot is requested, use stacked area plot
 if(stacked_plot && length(regions) > 1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios) && length(scenarios)>1) p <- p + facet_wrap(. ~ file)
 } else if(regions[1]=="World" | length(regions)==1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 if(ylim_zero) p <- p + ylim(0, NA)
 if(show_historical) {
   p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
@@ -147,7 +165,7 @@ if(show_historical) {
 }
 p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
 }else{
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 if(show_historical) {
   p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
   p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=n, shape=file), size=4.0)
@@ -157,6 +175,53 @@ p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.dire
 if(length(results_dir)!=1 && !stacked_plot) p <- p + facet_grid(. ~ pathdir)
 if(nrow(afd)>0) print(p + labs(title=variable))
 })
+output$hover_info <- renderUI({
+  hover <- input$plot_hover
+  data  <- plot_data_rv()
+  if (is.null(hover) || is.null(data)) return(NULL)
+  pt <- nearPoints(data, hover, xvar = ".hover_year", yvar = "value", threshold = 15, maxpoints = 1)
+  if (nrow(pt) == 0) return(NULL)
+  parts <- character(0)
+  if ("file" %in% names(pt)) parts <- c(parts, as.character(pt$file[1]))
+  if ("n"    %in% names(pt) && !identical(as.character(pt$n[1]), "World")) parts <- c(parts, as.character(pt$n[1]))
+  label <- paste(parts, collapse = " / ")
+  div(style = paste0(
+    "position:absolute;background:rgba(255,255,255,0.92);",
+    "border:1px solid #aaa;border-radius:3px;padding:3px 8px;",
+    "pointer-events:none;font-size:13px;white-space:nowrap;",
+    "left:", hover$coords_css$x + 10, "px;",
+    "top:",  hover$coords_css$y - 35, "px;"
+  ), label)
+})
+output$non_time_table <- renderTable({
+  if (isTRUE(has_time_dim_rv())) return(NULL)
+  data <- plot_data_rv()
+  if (is.null(data)) return(NULL)
+  regions <- input$regions_selected
+  if (!is.null(regions) && "n" %in% names(data) && !("World" %in% regions)) data <- data[data$n %in% regions, , drop = FALSE]
+  data <- data[, !names(data) %in% c(".hover_year", "tlen", "pathdir"), drop = FALSE]
+  if ("value" %in% names(data)) data$value <- signif(data$value, 6)
+  data[order(data$file, data$n), ]
+}, striped = TRUE, hover = TRUE, bordered = TRUE)
+output$results_data_table <- renderTable({
+  data <- plot_data_rv()
+  if (is.null(data)) return(NULL)
+  regions <- input$regions_selected
+  if (!is.null(regions) && "n" %in% names(data) && !("World" %in% regions)) data <- data[data$n %in% regions, , drop = FALSE]
+  data <- data[, !names(data) %in% c(".hover_year", "tlen", "pathdir"), drop = FALSE]
+  if ("t" %in% names(data)) {
+    data$year <- suppressWarnings(as.integer(ttoyear(data$t)))
+    col_order <- c("year", setdiff(names(data), c("t", "year")))
+    data <- data[, col_order, drop = FALSE]
+    data$t <- NULL
+  }
+  if ("value" %in% names(data)) data$value <- signif(data$value, 6)
+  data[order(data$file, data$n), ]
+}, striped = TRUE, hover = TRUE, bordered = TRUE)
+output$has_time_dim <- reactive({ isTRUE(has_time_dim_rv()) })
+outputOptions(output, "has_time_dim",     suspendWhenHidden = FALSE)
+outputOptions(output, "gdxcompaRplot",    suspendWhenHidden = FALSE)
+outputOptions(output, "non_time_table",   suspendWhenHidden = FALSE)
 output$gdxcompaRstackedplot <- renderPlot({
 show_historical <- input$add_historical  # Checkbox controls plot visibility
 ylim_zero <- input$ylim_zero
@@ -167,11 +232,12 @@ afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
 output$choose_additional_set <- renderUI({
+if(set_info$additional_set_id == "na") return(NULL)
 variable <- variable_selected_reactive()
 if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
-label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
+label1 <- set_info$additional_set_id
 if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
   d <- all_var_descriptions$description[all_var_descriptions$name == label1]
   if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
@@ -212,7 +278,7 @@ afd <- rbind(afd, afd_hist)
 unit_conv <- unit_conversion(variable)
 afd$value <- afd$value * unit_conv$convert
 afd$year <- ttoyear(afd$t)
-p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 p_stacked <- p_stacked + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios)) p_stacked <- p_stacked + facet_wrap(. ~ file)
 if(nrow(afd)>0) print(p_stacked + labs(title=variable))
@@ -244,11 +310,11 @@ unit_conv$convert <- 1
 }
 # Create plot using same logic as gdxcompaRplot
 if(stacked_plot && length(regions) > 1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios) && length(scenarios)>1) p <- p + facet_wrap(. ~ file)
 } else if(regions[1]=="World" | length(regions)==1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 if(ylim_zero) p <- p + ylim(0, NA)
 if(show_historical) {
   p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
@@ -256,7 +322,7 @@ if(show_historical) {
 }
 p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
 }else{
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 if(show_historical) {
   p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
   p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=n, shape=file), size=4.0)

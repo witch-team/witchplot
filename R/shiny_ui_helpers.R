@@ -8,11 +8,11 @@ create_scenario_selector <- function(scenlist) {
       grp_labels[grp_labels == ""] <- "(root)"
       grouped <- split(scenarios, grp_labels)
       return(selectInput(inputId="scenarios_selected", label="Scenarios:", choices=grouped,
-                         size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=scenarios))
+                         size=min(length(scenlist), 10), selectize=FALSE, multiple=TRUE, selected=scenarios))
     }
   }
   selectInput(inputId="scenarios_selected", label="Scenarios:", choices=scenarios,
-              size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=scenarios)
+              size=min(length(scenlist), 10), selectize=FALSE, multiple=TRUE, selected=scenarios)
 }
 create_variable_selector <- function(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=NULL) {
   if(use_picker) {
@@ -35,7 +35,7 @@ create_region_selector <- function(witch_regions, include_aggregates=c("World", 
   region_names_map <- if(exists("rice_region_names")) rice_region_names else witch_region_longnames
   long_names <- region_names_map[witch_regions]
   display_labels <- ifelse(!is.na(long_names),
-                           paste0(long_names, " (", witch_regions, ")"),
+                           paste0(witch_regions, " - ", long_names),
                            witch_regions)
   named_regions <- setNames(as.list(witch_regions), display_labels)
   if(length(include_aggregates) > 0) {
