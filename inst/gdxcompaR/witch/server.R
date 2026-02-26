@@ -96,6 +96,7 @@ output$choose_additional_set2 <- renderUI({
 
 output$varname <- renderText({
   var <- variable_input()
+  if(is.null(var) || length(var) == 0) return("")
   desc <- ""
   if(exists("all_var_descriptions") && var %in% all_var_descriptions$name) {
     d <- all_var_descriptions$description[all_var_descriptions$name == var]
@@ -105,17 +106,17 @@ output$varname <- renderText({
   set_info <- set_info_reactive()
   # Apply same fallback logic as renderPlot so the title always reflects what is shown
   eff_sel <- input$additional_set_id_selected
-  if(is.null(eff_sel) || eff_sel[1] == "na" || !(eff_sel[1] %in% set_info$set_elements)) {
+  if(is.null(eff_sel) || length(eff_sel) == 0 || eff_sel[1] == "na" || !(eff_sel[1] %in% set_info$set_elements)) {
     eff_sel <- set_info$set_elements[1]
   }
   if(set_info$additional_set_id != "na") {
     var_text <- paste0(var_text, " [", str_trunc(paste(eff_sel, collapse=", "), 20), "]")
   }
-  eff_sel2 <- input$additional_set_id_selected2
-  if(is.null(eff_sel2) || eff_sel2[1] == "na" || !(eff_sel2[1] %in% set_info$set_elements2)) {
-    eff_sel2 <- set_info$set_elements2[1]
-  }
   if(set_info$additional_set_id2 != "na") {
+    eff_sel2 <- input$additional_set_id_selected2
+    if(is.null(eff_sel2) || length(eff_sel2) == 0 || eff_sel2[1] == "na" || !(eff_sel2[1] %in% set_info$set_elements2)) {
+      eff_sel2 <- set_info$set_elements2[1]
+    }
     var_text <- paste0(var_text, " [", str_trunc(paste(eff_sel2, collapse=", "), 20), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
