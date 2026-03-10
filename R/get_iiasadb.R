@@ -76,9 +76,9 @@ get_iiasadb <- function(variable_name, scenplot = NULL, add_historical = NULL) {
   # Get data from global environment
   all_data <- get("iiasadb_data", envir = .GlobalEnv)
 
-  # Filter by variable name (support both exact match and regex)
+  # Filter by variable name (exact match, case-insensitive)
   variable_data <- all_data %>%
-    filter(str_detect(VARIABLE, fixed(variable_name, ignore_case = TRUE)) | VARIABLE == variable_name)
+    filter(toupper(VARIABLE) == toupper(variable_name))
 
   if(nrow(variable_data) == 0) {
     warning(sprintf("Variable '%s' not found in loaded data", variable_name))

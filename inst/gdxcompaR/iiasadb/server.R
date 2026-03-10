@@ -193,8 +193,7 @@ shinyServer(function(input, output, session) {
       coverage_data <- iiasadb_snapshot %>%
         filter(SCENARIO %in% scenarios_selected & MODEL %in% models_selected) %>%
         group_by(MODEL, SCENARIO) %>%
-        filter(!str_detect(REGION, "\\|")) %>%
-        summarize(REGION=unique(REGION), .groups="drop") %>%
+        reframe(REGION=unique(REGION)) %>%
         group_by(SCENARIO, MODEL) %>%
         summarize(REGIONS=length(REGION), .groups = 'drop')
 
@@ -224,8 +223,7 @@ shinyServer(function(input, output, session) {
       coverage_data <- iiasadb_snapshot %>%
         filter(SCENARIO %in% scenarios_selected & MODEL %in% models_selected) %>%
         group_by(MODEL, SCENARIO) %>%
-        filter(!str_detect(REGION, "\\|")) %>%
-        summarize(REGION=unique(REGION), .groups="drop") %>%
+        reframe(REGION=unique(REGION)) %>%
         group_by(REGION, MODEL) %>%
         summarize(SCENARIOS=length(SCENARIO), .groups = 'drop')
 
@@ -256,12 +254,11 @@ shinyServer(function(input, output, session) {
       coverage_data <- iiasadb_snapshot %>%
         filter(SCENARIO %in% scenarios_selected) %>%
         filter(MODEL %in% models_selected) %>%
-        filter(!str_detect(REGION, "\\|")) %>%
         group_by(VARIABLE, MODEL) %>%
         summarise(Count = n(), .groups = 'drop') %>%
         pivot_wider(names_from = MODEL, values_from = Count, values_fill = 0) %>%
-        mutate(num_models = rowSums(select(., -all_of("VARIABLE")) > 0),
-               single_model = case_when(
+        mutate(num_models = rowSums(select(., -all_of("VARIABLE")) > 0)) %>%
+        mutate(single_model = case_when(
                  num_models == 1 ~ {
                    model_cols <- select(., -all_of(c("VARIABLE", "num_models")))
                    names(model_cols)[max.col(model_cols)]
@@ -305,7 +302,6 @@ shinyServer(function(input, output, session) {
 
       coverage_data <- iiasadb_snapshot %>%
         filter(SCENARIO %in% scenarios_selected & MODEL %in% models_selected) %>%
-        filter(!str_detect(REGION, "\\|")) %>%
         group_by(YEAR, MODEL) %>%
         summarize(SCENARIOS_REGIONS = length(unique(paste(SCENARIO, REGION))), .groups = 'drop')
 

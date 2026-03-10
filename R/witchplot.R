@@ -289,6 +289,8 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #' @param reg_id Regional aggregation(s) to display, e.g., c("witch20", "global") (default: c("witch20", "global"))
 #' @param iamc_filename Specific IAMC file to load (CSV, XLSX, or CSV.ZIP). If NULL, loads all CSV/XLSX files in results_dir (default: NULL)
 #' @param iamc_databasename Name of IIASA database to connect to (e.g., "ENGAGE"). Alternative to iamc_filename (default: NULL)
+#' @param restrict_files Pattern to restrict which files are loaded (default: "" = load all). Only files matching this pattern are included.
+#' @param exclude_files Pattern to exclude files from loading (default: "" = exclude none). Files matching this pattern are skipped.
 #' @param year0 Base year for the model (default: 2005)
 #' @param tstep Time step in years (default: 5)
 #' @param deploy_online Logical, whether to deploy online (default: FALSE)
@@ -317,10 +319,17 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #'
 #'   # Connect to IIASA database
 #'   run_iiasadb(iamc_databasename = "ENGAGE")
+#'
+#'   # Load only files matching a pattern
+#'   run_iiasadb(restrict_files = "SPARCCLE")
+#'
+#'   # Exclude files matching a pattern
+#'   run_iiasadb(exclude_files = "template")
 #' }
 #'
 #' @export
 run_iiasadb <- function(results_dir="./", reg_id=c("r5"), iamc_filename=NULL, iamc_databasename=NULL,
+                        restrict_files="", exclude_files="",
                         add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
                         launch=TRUE, ...) {
 # Clean up any global variables from previous sessions
@@ -329,8 +338,10 @@ if(!is.vector(results_dir)) results_dir <- c(results_dir)
 # Normalize results_dir to avoid double slashes in file paths
 results_dir <- normalizePath(results_dir, winslash="/", mustWork=FALSE)
 # Set all options
-opts <- list(results_dir=results_dir, reg_id=reg_id, deploy_online=deploy_online, figure_format=figure_format, add_historical=add_historical, write_plotdata_csv=write_plotdata_csv, ...)
+opts <- list(results_dir=results_dir, reg_id=reg_id, restrict_files=restrict_files, exclude_files=exclude_files, deploy_online=deploy_online, figure_format=figure_format, add_historical=add_historical, write_plotdata_csv=write_plotdata_csv, ...)
 options(opts)
+assign("restrict_files", restrict_files, envir=.GlobalEnv)
+assign("exclude_files", exclude_files, envir=.GlobalEnv)
 assign("results_dir", results_dir, envir=.GlobalEnv)
 assign("reg_id", reg_id, envir=.GlobalEnv)
 assign("deploy_online", deploy_online, envir=.GlobalEnv)
@@ -405,6 +416,18 @@ for(results_path in results_dir) {
     xlsx_files <- list.files(results_path, pattern="\\.xlsx$", full.names=FALSE, ignore.case=TRUE)
     csvzip_files <- list.files(results_path, pattern="\\.csv\\.zip$", full.names=FALSE, ignore.case=TRUE)
     all_files <- c(csv_files, xlsx_files, csvzip_files)
+
+    # Exclude Excel/Office lock files (e.g. ~$filename.xlsx)
+    all_files <- all_files[!stringr::str_detect(all_files, "^~\\$")]
+
+    # Apply restrict_files filter (keep only files matching pattern)
+    if(restrict_files != "") {
+      all_files <- all_files[stringr::str_detect(all_files, restrict_files)]
+    }
+    # Apply exclude_files filter (remove files matching pattern)
+    if(exclude_files != "") {
+      all_files <- all_files[!stringr::str_detect(all_files, exclude_files)]
+    }
 
     if(length(all_files)==0) {
       warning("No CSV or XLSX files found in: ", results_path)
