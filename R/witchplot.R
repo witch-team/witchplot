@@ -331,7 +331,17 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 run_iiasadb <- function(results_dir="./", reg_id=c("r5"), iamc_filename=NULL, iamc_databasename=NULL,
                         restrict_files="", exclude_files="",
                         add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
-                        launch=TRUE, ...) {
+                        launch=TRUE, run_pyam=NULL, creds=NULL, reglist="common", varlist="*", modlist="*", ...) {
+# Handle run_pyam operations: query the IIASA database without loading data
+# or launching Shiny. Delegates to pyam_iiasa() via .run_pyam_iiasa().
+# Supported values: "list_platforms", "list_models", "list_scenarios",
+#   "list_variables", "list_regions", "meta", "meta_columns", "index"
+if (!is.null(run_pyam)) {
+  require(reticulate)
+  pyam <- reticulate::import("pyam", convert=FALSE)
+  .check_ixmp4_auth()
+  return(invisible(.run_pyam_iiasa(pyam, iamc_databasename, run_pyam, creds=creds)))
+}
 # Clean up any global variables from previous sessions
 .cleanup_witchplot_globals()
 if(!is.vector(results_dir)) results_dir <- c(results_dir)
@@ -394,8 +404,24 @@ if(input==1) {
 }
 }
 if(load_from_db) {
+  # Resolve reglist="common": fetch aggregate hierarchy regions from ixmp4 + key countries
+  if(identical(reglist, "common") && !is.null(iamc_databasename)) {
+    tryCatch({
+      ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
+      reg_df <- as.data.frame(reticulate::py_to_r(ixmp4$Platform(iamc_databasename)$regions$tabulate()))
+      common_hierarchies <- c("common", "R5", "R9", "R10", "Regional Organizations")
+      reglist <- c(reg_df$name[reg_df$hierarchy %in% common_hierarchies],
+                   c("France", "Germany", "Spain", "Italy"))
+      reglist <- unique(reglist[!is.na(reglist)])
+      message("Resolved 'common' to ", length(reglist), " regions.")
+    }, error = function(e) {
+      message("Could not resolve 'common' regions, falling back to 'World': ", conditionMessage(e))
+      reglist <<- "World"
+    })
+  }
   message("Fetching data from IIASA database: ", iamc_databasename)
-  iiasadb_snapshot <- download_iiasadb(database=iamc_databasename, varlist="*", region="World", modlist="*", scenlist="*", add_metadata=FALSE)
+  partial_path <- file.path(results_dir[1], "iiasadb_partial.Rdata")
+  iiasadb_snapshot <- download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist="*", add_metadata=FALSE, autosave_path=partial_path)
   names(iiasadb_snapshot) <- toupper(names(iiasadb_snapshot))
   iiasadb_snapshot <- iiasadb_snapshot %>% dplyr::select(MODEL, SCENARIO, REGION, VARIABLE, UNIT, YEAR, VALUE) %>% dplyr::rename(value=VALUE) %>% dplyr::filter(!is.na(value))
   assign("iiasadb_snapshot", iiasadb_snapshot, envir=.GlobalEnv)
