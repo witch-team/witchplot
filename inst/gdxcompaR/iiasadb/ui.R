@@ -39,6 +39,7 @@ shinyUI(fluidPage(
     #shinyFilesButton('files', label='File select', title='Please select a file', multiple=FALSE),
     
     uiOutput("select_variable"),
+    uiOutput("select_unit"),
     #actionButton("chgvar", "Update variable", icon("refresh")),
     sliderInput("yearlim", 
                 "Time", 

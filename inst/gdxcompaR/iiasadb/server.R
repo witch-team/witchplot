@@ -48,6 +48,16 @@ shinyServer(function(input, output, session) {
       return(input$variable_selected)
     })
 
+    # Unit selector — only shown when the selected variable has multiple units
+    output$select_unit <- renderUI({
+      var <- variable_input()
+      if (is.null(var)) return(NULL)
+      units <- unique(iiasadb_snapshot$UNIT[iiasadb_snapshot$VARIABLE == var])
+      units <- units[!is.na(units)]
+      if (length(units) <= 1) return(NULL)
+      selectInput("unit_selected", "Unit:", choices = units, selected = units[1], multiple = FALSE)
+    })
+
     # Variable name display with region info
     output$varname <- renderText({
       var_text <- paste0("Variable: ", variable_input())
@@ -92,7 +102,10 @@ shinyServer(function(input, output, session) {
       if(is.null(variable)) variable <- variables[1]
       #get data using new get_iiasadb() function (similar to get_witch())
       allfilesdata <- get_iiasadb(variable, add_historical = if(exists("add_historical")) add_historical else FALSE)
-      unitplot <- unique(allfilesdata$UNIT)[1]
+      # Filter by selected unit if the selector is shown (multiple units exist)
+      unit_sel <- if (!is.null(input$unit_selected)) input$unit_selected else unique(allfilesdata$UNIT)[1]
+      allfilesdata <- allfilesdata[is.na(allfilesdata$UNIT) | allfilesdata$UNIT == unit_sel, ]
+      unitplot <- unit_sel
 
       #get input from sliders/buttons
       yearlim <- input$yearlim
