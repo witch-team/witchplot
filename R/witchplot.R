@@ -17,16 +17,46 @@ add_historical=TRUE,
 write_plotdata_csv=FALSE
 )
 
-# Try to automatically initialize GDX library
+# Try to automatically initialize GDX library; show a friendly message if GAMS is missing
 tryCatch({
   if(requireNamespace("gdxtools", quietly = TRUE)) {
-    # Silently try to initialize GDX - don't show messages during package load
-    suppressMessages(gdxtools::igdx())
+    ok <- suppressMessages(suppressWarnings(gdxtools::igdx()))
+    if(identical(ok, FALSE)) {
+      packageStartupMessage(
+        "Note: GAMS could not be found on this system.\n",
+        "  run_witch(), run_rice() and run_fidelio() need GAMS to read GDX files.\n",
+        "  Download the free GAMS Community Edition: https://gams.com/download/\n",
+        "  run_iiasadb() works without GAMS."
+      )
+    }
   }
 }, error = function(e) {
-  # Silently fail - GDX will be initialized later if needed
-  # User will get helpful error message from setup_gdx() if they try to use it
+  packageStartupMessage(
+    "Note: GAMS could not be initialized.\n",
+    "  run_witch(), run_rice() and run_fidelio() need GAMS to read GDX files.\n",
+    "  Download the free GAMS Community Edition: https://gams.com/download/\n",
+    "  run_iiasadb() works without GAMS."
+  )
 })
+}
+
+# Internal helper: stop with a friendly message if GAMS is not available
+.require_gams <- function() {
+  ok <- tryCatch(
+    suppressMessages(suppressWarnings(gdxtools::igdx())),
+    error = function(e) FALSE
+  )
+  if (identical(ok, FALSE)) {
+    stop(
+      "GAMS is not installed or could not be found on this system.\n",
+      "  run_witch(), run_rice() and run_fidelio() require GAMS to read GDX files.\n",
+      "  Download the free GAMS Community Edition: https://gams.com/download/\n",
+      "  After installing GAMS, restart R and try again.\n",
+      "  Tip: run_iiasadb() works without GAMS.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
 }
 
 #' Clean up global environment from previous witchplot sessions
@@ -116,6 +146,7 @@ tryCatch({
 run_witch <- function(results_dir="./", restrict_files="results_", exclude_files="", removepattern="results_",
                       add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
                       launch=TRUE, ...) {
+.require_gams()
 # Clean up any global variables from previous sessions
 .cleanup_witchplot_globals()
 if(!is.vector(results_dir)) results_dir <- c(results_dir)
@@ -187,6 +218,7 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "witch", package="witch
 run_rice <- function(results_dir="./", reg_id="ed58", year0=2015, tstep=5, restrict_files="results_", exclude_files="", removepattern="results_",
                      add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
                      launch=TRUE, ...) {
+.require_gams()
 # Clean up any global variables from previous sessions
 .cleanup_witchplot_globals()
 if(!is.vector(results_dir)) results_dir <- c(results_dir)
@@ -252,6 +284,7 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "rice", package="witchp
 run_fidelio <- function(results_dir="./", restrict_files="results_", exclude_files="", removepattern="results_",
                         add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
                         launch=TRUE, ...) {
+.require_gams()
 # Clean up any global variables from previous sessions
 .cleanup_witchplot_globals()
 if(!is.vector(results_dir)) results_dir <- c(results_dir)
