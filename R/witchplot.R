@@ -600,7 +600,11 @@ if(add_historical) {
       iiasadb_with_historical[[varname]] <- add_historical_values(iiasadb_snapshot %>% dplyr::filter(VARIABLE==varname), varname=varname, iiasadb=TRUE, verbose=FALSE)
     }
   }
-  iiasadb_historical <- data.table::rbindlist(iiasadb_with_historical) %>% dplyr::filter(stringr::str_detect(SCENARIO, "historical")) %>% as.data.frame()
+  if (length(iiasadb_with_historical) > 0) {
+    iiasadb_historical <- data.table::rbindlist(iiasadb_with_historical) %>% dplyr::filter(stringr::str_detect(SCENARIO, "historical")) %>% as.data.frame()
+  } else {
+    iiasadb_historical <- data.frame()
+  }
 } else {
   # Create empty historical data frame
   iiasadb_historical <- data.frame()
