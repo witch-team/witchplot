@@ -17,36 +17,41 @@ add_historical=TRUE,
 write_plotdata_csv=FALSE
 )
 
-# Try to automatically initialize GDX library; show a friendly message if GAMS is missing
-tryCatch({
-  if(requireNamespace("gdxtools", quietly = TRUE)) {
-    ok <- suppressMessages(suppressWarnings(gdxtools::igdx()))
-    if(identical(ok, FALSE)) {
-      packageStartupMessage(
-        "Note: GAMS could not be found on this system.\n",
-        "  run_witch(), run_rice() and run_fidelio() need GAMS to read GDX files.\n",
-        "  Download the free GAMS Community Edition: https://gams.com/download/\n",
-        "  run_iiasadb() works without GAMS."
-      )
-    }
-  }
-}, error = function(e) {
+# Show a friendly startup message if GAMS cannot be found.
+# IMPORTANT: never call gdxtools::igdx() here — it segfaults when GAMS is missing.
+# Instead, detect GAMS by looking for the executable.
+if (!.gams_available()) {
   packageStartupMessage(
-    "Note: GAMS could not be initialized.\n",
+    "Note: GAMS could not be found on this system.\n",
     "  run_witch(), run_rice() and run_fidelio() need GAMS to read GDX files.\n",
     "  Download the free GAMS Community Edition: https://gams.com/download/\n",
     "  run_iiasadb() works without GAMS."
   )
-})
+}
+}
+
+# Internal: detect GAMS without calling igdx() (which segfaults when GAMS is absent).
+.gams_available <- function() {
+  # Check PATH for gams executable
+  if (nchar(Sys.which("gams")) > 0) return(TRUE)
+  # Check GAMSDIR environment variable
+  gams_dir <- Sys.getenv("GAMSDIR")
+  if (nchar(gams_dir) > 0 && dir.exists(gams_dir)) return(TRUE)
+  # Check common Windows installation directory C:/GAMS/<version>/
+  if (.Platform$OS.type == "windows") {
+    gams_base <- "C:/GAMS"
+    if (dir.exists(gams_base) && length(list.dirs(gams_base, recursive=FALSE)) > 0) return(TRUE)
+  }
+  # Check common Linux/Mac paths
+  if (.Platform$OS.type == "unix") {
+    if (any(dir.exists(c("/opt/gams", "/usr/local/gams", path.expand("~/gams"))))) return(TRUE)
+  }
+  FALSE
 }
 
 # Internal helper: stop with a friendly message if GAMS is not available
 .require_gams <- function() {
-  ok <- tryCatch(
-    suppressMessages(suppressWarnings(gdxtools::igdx())),
-    error = function(e) FALSE
-  )
-  if (identical(ok, FALSE)) {
+  if (!.gams_available()) {
     stop(
       "GAMS is not installed or could not be found on this system.\n",
       "  run_witch(), run_rice() and run_fidelio() require GAMS to read GDX files.\n",
