@@ -101,24 +101,89 @@ run_fidelio() # Uses defaults
 
   
 
-### IIASADB (for IAMC format model results data
+### IIASADB — pyam Integration (IAMC Format Model Results)
+
+`run_iiasadb()` is witchplot's R interface to the [pyam](https://pyam-iamc.readthedocs.io/) Python library — the standard toolkit for working with IAMC-format integrated assessment model (IAM) scenario data. It supports loading local files and connecting directly to IIASA online databases using pyam's IIASA Connection API (via `reticulate`).
 
 ```r
 
-# REads all CSV and XLSX files from results directory (default behavior)
+# Reads all CSV and XLSX files from results directory (default behavior)
 
 run_iiasadb() # Automatically finds and combines all .csv, .xlsx, .csv.zip files
 
-  
+
 
 # Or load a specific file
 
-run_iiasadb(iamc_filename="data.csv")  
- 
+run_iiasadb(iamc_filename="data.csv")
 
-# Or connect to IIASA database directly
 
-run_iiasadb(iamc_databasename="IIASA-database-name")
+# Or connect to IIASA database directly (requires pyam: pip install pyam-iamc)
+
+run_iiasadb(iamc_databasename="ar6-public")
+
+
+
+# Download only specific variables and regions
+
+run_iiasadb(
+  iamc_databasename = "ar6-public",
+  varlist = c("Emissions|CO2", "GDP|PPP", "Population"),
+  reglist = c("World", "R5ASIA", "R5LAM")
+)
+
+```
+
+#### pyam API Queries (`run_pyam` argument)
+
+Use `run_pyam` to query IIASA databases without launching the Shiny app. Requires Python with pyam installed (`pip install pyam-iamc`).
+
+```r
+
+# List all available IIASA platforms (no database needed)
+run_iiasadb(run_pyam = "list_platforms")
+
+# List platforms accessible with your credentials (old-format instances only)
+run_iiasadb(run_pyam = "valid_connections")
+
+# --- Old-format instances (grey icon in IIASA web UI) ---
+
+# List models, scenarios, variables, regions in a database
+run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_models")
+run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_scenarios")
+run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_variables")
+run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_regions")
+
+# Get model/scenario metadata and index
+meta <- run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "meta")
+idx  <- run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "index")
+run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "meta_columns")
+
+# --- New ixmp4-format instances (blue icon in IIASA web UI) ---
+
+run_iiasadb(iamc_databasename = "ENGAGE", run_pyam = "ixmp4_list_runs")
+run_iiasadb(iamc_databasename = "ENGAGE", run_pyam = "ixmp4_variables")
+run_iiasadb(iamc_databasename = "ENGAGE", run_pyam = "ixmp4_regions")
+run_iiasadb(iamc_databasename = "ENGAGE", run_pyam = "ixmp4_units")
+
+```
+
+#### IIASA Authentication
+
+```r
+
+# Login once — credentials are stored for future sessions
+iiasa_login("your@email.com")
+
+# Or pass credentials directly
+run_iiasadb(
+  iamc_databasename = "private-db",
+  creds = list(username = "user@email.com", password = "secret")
+)
+
+# Also available as a standalone function:
+pyam_iiasa("list_platforms")
+pyam_iiasa("list_models", database = "ar6-public")
 
 ```
 
