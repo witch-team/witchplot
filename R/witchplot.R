@@ -484,8 +484,7 @@ run_iiasadb <- function(results_dir="./", reg_id=c("r5"), iamc_filename=NULL, ia
 # Supported values: "list_platforms", "list_models", "list_scenarios",
 #   "list_variables", "list_regions", "meta", "meta_columns", "index"
 if (!is.null(run_pyam)) {
-  require(reticulate)
-  pyam <- reticulate::import("pyam", convert=FALSE)
+  pyam <- .ensure_pyam()
   .check_ixmp4_auth()
   return(invisible(.run_pyam_iiasa(pyam, iamc_databasename, run_pyam, creds=creds)))
 }

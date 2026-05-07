@@ -3,6 +3,39 @@
 #require(reticulate)
 #require(yaml)
 
+# Helper: Ensure pyam is available, auto-installing if needed
+.ensure_pyam <- function() {
+  if (!requireNamespace("reticulate", quietly = TRUE))
+    stop("Package 'reticulate' is required to connect to IIASA databases.\n",
+         "Install with: install.packages('reticulate')\n",
+         "Then install pyam in Python: pip install pyam-iamc", call. = FALSE)
+
+  pyam <- tryCatch(
+    reticulate::import("pyam", convert = FALSE),
+    error = function(e) NULL
+  )
+
+  if (is.null(pyam)) {
+    message("Python package 'pyam' not found. Installing from pyam-iamc via pip...")
+    tryCatch(
+      reticulate::py_install("pyam-iamc", pip = TRUE),
+      error = function(e)
+        stop("Failed to auto-install pyam: ", conditionMessage(e), "\n",
+             "Please install manually: pip install pyam-iamc\n",
+             "Tip: check your Python environment with reticulate::py_config()", call. = FALSE)
+    )
+    message("pyam installed successfully.")
+    pyam <- tryCatch(
+      reticulate::import("pyam", convert = FALSE),
+      error = function(e)
+        stop("pyam was installed but cannot be imported: ", conditionMessage(e), "\n",
+             "Try restarting R and calling the function again.", call. = FALSE)
+    )
+  }
+
+  pyam
+}
+
 # Helper: Check ixmp4 authentication across platforms (Windows, Linux, Mac)
 .check_ixmp4_auth <- function() {
   # On Windows, R's ~ expands to Documents, not the actual home dir.
@@ -227,8 +260,7 @@ iiasa_login <- function(username, password=NULL) {
 
 #Function to download data from IIASA database
 download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname=NULL, modlist="*", scenlist="*", reglist="World", show_variables=FALSE, add_metadata=TRUE, run_pyam=NULL, creds=NULL, autosave_path=NULL) {
-  require(reticulate)
-  pyam <- import("pyam", convert=FALSE)
+  pyam <- .ensure_pyam()
 
   .check_ixmp4_auth()
 
