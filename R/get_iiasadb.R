@@ -3,7 +3,9 @@
 #require(reticulate)
 #require(yaml)
 
-# Helper: Ensure pyam is available, auto-installing if needed
+# Helper: Ensure pyam is available, auto-installing if needed.
+# Supports both reticulate ephemeral environments (uv, py_require) and
+# traditional environments (py_install).
 .ensure_pyam <- function() {
   if (!requireNamespace("reticulate", quietly = TRUE))
     stop("Package 'reticulate' is required to connect to IIASA databases.\n",
@@ -16,21 +18,29 @@
   )
 
   if (is.null(pyam)) {
-    message("Python package 'pyam' not found. Installing from pyam-iamc via pip...")
+    message("Python package 'pyam' not found. Installing pyam-iamc...")
+    # reticulate >= 1.40 with uv uses ephemeral environments: py_require() is
+    # the correct installer. Older reticulate uses py_install(pip=TRUE).
+    has_py_require <- exists("py_require", envir = asNamespace("reticulate"),
+                             mode = "function", inherits = FALSE)
     tryCatch(
-      reticulate::py_install("pyam-iamc", pip = TRUE),
+      if (has_py_require) reticulate::py_require("pyam-iamc")
+      else reticulate::py_install("pyam-iamc", pip = TRUE),
       error = function(e)
-        stop("Failed to auto-install pyam: ", conditionMessage(e), "\n",
-             "Please install manually: pip install pyam-iamc\n",
-             "Tip: check your Python environment with reticulate::py_config()", call. = FALSE)
+        stop("Failed to install pyam-iamc: ", conditionMessage(e), "\n",
+             "Please install manually:\n",
+             "  In R:      reticulate::py_require('pyam-iamc')   # uv / ephemeral env\n",
+             "  In Python: pip install pyam-iamc                 # traditional env\n",
+             "Tip: check your Python setup with reticulate::py_config()", call. = FALSE)
     )
-    message("pyam installed successfully.")
+    message("pyam-iamc installed. Importing pyam...")
     pyam <- tryCatch(
       reticulate::import("pyam", convert = FALSE),
       error = function(e)
         stop("pyam was installed but cannot be imported: ", conditionMessage(e), "\n",
              "Try restarting R and calling the function again.", call. = FALSE)
     )
+    message("pyam loaded successfully.")
   }
 
   pyam
