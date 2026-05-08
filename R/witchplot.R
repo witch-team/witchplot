@@ -402,6 +402,10 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #'   restrict (e.g., \code{c("Emissions|CO2", "GDP|PPP")}).
 #' @param modlist Models to download when using \code{iamc_databasename}.
 #'   Default \code{"*"} downloads all models.
+#' @param scenlist Scenarios to download when using \code{iamc_databasename}.
+#'   Default \code{"*"} downloads all scenarios. Pass a character vector to
+#'   restrict (e.g., \code{c("SSP2-Baseline", "SSP2-1p5C")}). Use
+#'   \code{run_iiasadb(run_pyam="list_scenarios")} first to see available names.
 #' @param ... Additional options passed to session configuration
 #'
 #' @return Invisibly returns NULL. Launches Shiny application if
@@ -466,19 +470,24 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #'     creds = list(username = "user@email.com", password = "secret")
 #'   )
 #'
-#'   # Download only specific variables and regions
+#'   # Download only specific variables, regions and scenarios
 #'   run_iiasadb(
 #'     iamc_databasename = "ar6-public",
-#'     varlist = c("Emissions|CO2", "GDP|PPP", "Population"),
-#'     reglist = c("World", "R5ASIA", "R5LAM")
+#'     varlist  = c("Emissions|CO2", "GDP|PPP", "Population"),
+#'     reglist  = c("World", "R5ASIA", "R5LAM"),
+#'     scenlist = c("SSP2-Baseline", "SSP2-1p5C")
 #'   )
+#'
+#'   # List available scenarios first, then download a subset
+#'   run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_scenarios")
+#'   run_iiasadb(iamc_databasename = "ar6-public", scenlist = c("SSP2-Baseline"))
 #' }
 #'
 #' @export
 run_iiasadb <- function(results_dir="./", reg_id=c("r5"), iamc_filename=NULL, iamc_databasename=NULL,
                         restrict_files="", exclude_files="",
                         add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
-                        launch=TRUE, run_pyam=NULL, creds=NULL, reglist="common", varlist="*", modlist="*", ...) {
+                        launch=TRUE, run_pyam=NULL, creds=NULL, reglist="common", varlist="*", modlist="*", scenlist="*", ...) {
 # Handle run_pyam operations: query the IIASA database without loading data
 # or launching Shiny. Delegates to pyam_iiasa() via .run_pyam_iiasa().
 # Supported values: "list_platforms", "list_models", "list_scenarios",
@@ -575,7 +584,21 @@ if(load_from_db) {
   }
   message("Fetching data from IIASA database: ", iamc_databasename)
   partial_path <- file.path(results_dir[1], "iiasadb_partial.Rdata")
-  iiasadb_data <- download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist="*", add_metadata=FALSE, autosave_path=partial_path)
+  iiasadb_data <- tryCatch(
+    download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist=scenlist, add_metadata=FALSE, autosave_path=partial_path, creds=creds),
+    error = function(e) {
+      msg <- conditionMessage(e)
+      if (grepl("401|Unauthorized|forbidden|authentication|credentials|permission|access.denied|login", msg, ignore.case=TRUE)) {
+        stop("Access denied to '", iamc_databasename, "'.\n",
+             "This database requires authentication. Store credentials once with:\n",
+             "  iiasa_login('your@email.com')\n",
+             "Or pass directly: run_iiasadb(iamc_databasename='", iamc_databasename,
+             "', creds=list(username='...', password='...'))\n",
+             "Original error: ", msg, call.=FALSE)
+      }
+      stop(msg, call.=FALSE)
+    }
+  )
   names(iiasadb_data) <- toupper(names(iiasadb_data))
   iiasadb_data <- iiasadb_data %>% dplyr::select(MODEL, SCENARIO, REGION, VARIABLE, UNIT, YEAR, VALUE) %>% dplyr::rename(value=VALUE) %>% dplyr::filter(!is.na(value))
   assign("iiasadb_data", iiasadb_data, envir=.GlobalEnv)
