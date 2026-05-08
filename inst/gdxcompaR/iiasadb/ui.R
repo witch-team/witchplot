@@ -2,23 +2,30 @@
 
 #load data if not running locally
 deploy_online <<- F
-if(!exists("iiasadb_snapshot")){
-  # Try to load snapshot from results_dir first, fall back to package directory
-  snapshot_loaded <- FALSE
+if(!exists("iiasadb_data")){
+  # Try to load parquet from results_dir first, fall back to package directory
+  data_loaded <- FALSE
   if(exists("results_dir") && length(results_dir) > 0) {
-    snapshot_path <- file.path(results_dir[1], "iiasadb_snapshot.Rdata")
-    if(file.exists(snapshot_path)) {
-      load(snapshot_path, envir = .GlobalEnv)
-      snapshot_loaded <- TRUE
+    data_path <- file.path(results_dir[1], "iiasadb_data.parquet")
+    if(file.exists(data_path)) {
+      iiasadb_data <<- arrow::read_parquet(data_path)
+      hist_path <- file.path(results_dir[1], "iiasadb_historical.parquet")
+      iiasadb_historical <<- if(file.exists(hist_path)) arrow::read_parquet(hist_path) else data.frame()
+      data_loaded <- TRUE
     }
   }
   # Fall back to package directory if not found in results_dir
-  if(!snapshot_loaded) {
-    load("iiasadb_snapshot.Rdata", envir = .GlobalEnv)
+  if(!data_loaded) {
+    pkg_path <- system.file("gdxcompaR", "iiasadb", "iiasadb_data.parquet", package="witchplot")
+    if(file.exists(pkg_path)) {
+      iiasadb_data <<- arrow::read_parquet(pkg_path)
+      pkg_hist <- system.file("gdxcompaR", "iiasadb", "iiasadb_historical.parquet", package="witchplot")
+      iiasadb_historical <<- if(file.exists(pkg_hist)) arrow::read_parquet(pkg_hist) else data.frame()
+    }
   }
   #Install and load packages
   require_package <- function(package){
-    suppressPackageStartupMessages(require(package,character.only=T, quietly = TRUE))  
+    suppressPackageStartupMessages(require(package,character.only=T, quietly = TRUE))
   }
   pkgs <- c('data.table', 'stringr', 'countrycode', 'ggplot2', 'ggpubr', 'scales', 'RColorBrewer', 'dplyr', 'openxlsx', 'gsubfn', 'tidyr', 'rlang', 'shiny', 'shinythemes', 'shinyWidgets', 'plotly', 'purrr', 'reldist', 'tidytidbits', 'forcats', 'arrow', 'DT')
   res <- lapply(pkgs, require_package)

@@ -19,12 +19,12 @@ shinyServer(function(input, output, session) {
     verbose = FALSE
     
     #get list of variables
-    regions <- unique(iiasadb_snapshot$REGION)
-    models <- unique(iiasadb_snapshot$MODEL)
-    variables <- unique(iiasadb_snapshot$VARIABLE)
+    regions <- unique(iiasadb_data$REGION)
+    models <- unique(iiasadb_data$MODEL)
+    variables <- unique(iiasadb_data$VARIABLE)
     variables <- sort(variables)
     variable_atstart <- ifelse("Population" %in% variables, "Population", variables[1])
-    scenarios <- unique(iiasadb_snapshot$SCENARIO)
+    scenarios <- unique(iiasadb_data$SCENARIO)
 
     #Scenario selector (max 10 rows with scrollbar)
     output$select_scenarios <- renderUI({
@@ -52,7 +52,7 @@ shinyServer(function(input, output, session) {
     output$select_unit <- renderUI({
       var <- variable_input()
       if (is.null(var)) return(NULL)
-      units <- unique(iiasadb_snapshot$UNIT[iiasadb_snapshot$VARIABLE == var])
+      units <- unique(iiasadb_data$UNIT[iiasadb_data$VARIABLE == var])
       units <- units[!is.na(units)]
       if (length(units) <= 1) return(NULL)
       selectInput("unit_selected", "Unit:", choices = units, selected = units[1], multiple = FALSE)
@@ -203,7 +203,7 @@ shinyServer(function(input, output, session) {
       models_selected <- input$models_selected
       scenarios_selected <- input$scenarios_selected
 
-      coverage_data <- iiasadb_snapshot %>%
+      coverage_data <- iiasadb_data %>%
         filter(SCENARIO %in% scenarios_selected & MODEL %in% models_selected) %>%
         group_by(MODEL, SCENARIO) %>%
         reframe(REGION=unique(REGION)) %>%
@@ -233,7 +233,7 @@ shinyServer(function(input, output, session) {
       models_selected <- input$models_selected
       scenarios_selected <- input$scenarios_selected
 
-      coverage_data <- iiasadb_snapshot %>%
+      coverage_data <- iiasadb_data %>%
         filter(SCENARIO %in% scenarios_selected & MODEL %in% models_selected) %>%
         group_by(MODEL, SCENARIO) %>%
         reframe(REGION=unique(REGION)) %>%
@@ -264,7 +264,7 @@ shinyServer(function(input, output, session) {
       models_selected <- input$models_selected
       scenarios_selected <- input$scenarios_selected
 
-      coverage_data <- iiasadb_snapshot %>%
+      coverage_data <- iiasadb_data %>%
         filter(SCENARIO %in% scenarios_selected) %>%
         filter(MODEL %in% models_selected) %>%
         group_by(VARIABLE, MODEL) %>%
@@ -313,7 +313,7 @@ shinyServer(function(input, output, session) {
       models_selected <- input$models_selected
       scenarios_selected <- input$scenarios_selected
 
-      coverage_data <- iiasadb_snapshot %>%
+      coverage_data <- iiasadb_data %>%
         filter(SCENARIO %in% scenarios_selected & MODEL %in% models_selected) %>%
         group_by(YEAR, MODEL) %>%
         summarize(SCENARIOS_REGIONS = length(unique(paste(SCENARIO, REGION))), .groups = 'drop')

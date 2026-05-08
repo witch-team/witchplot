@@ -77,7 +77,7 @@ if (!.gams_available()) {
     "region_palette_specific_short", "region_palette_longnames",
     "stochastic_files", "all_var_descriptions",
     "graphdir", "map_var_hist", "iamc_filename", "iamc_databasename",
-    "iiasadb_snapshot", "iiasadb_historical",
+    "iiasadb_data", "iiasadb_historical",
     "varlist_combine_old_new_j", "file_separate", "nice_region_names", "restrict_regions"
   )
 
@@ -523,29 +523,36 @@ if(file.exists(map_var_hist_file)) {
 assign("map_var_hist", map_var_hist, envir=.GlobalEnv)
 # IIASADB doesn't use GDX files, so don't initialize GDX session
 if(!is.null(iamc_databasename)) {
-# Try to find snapshot in results_dir first, then fall back to package
-snapshot_file <- NULL
+# Try to find cached parquet in results_dir first, then fall back to package
+cache_file <- NULL
 if(exists("results_dir") && length(results_dir) > 0) {
-  results_snapshot <- file.path(results_dir[1], "iiasadb_snapshot.Rdata")
-  if(file.exists(results_snapshot)) {
-    snapshot_file <- results_snapshot
+  results_cache <- file.path(results_dir[1], "iiasadb_data.parquet")
+  if(file.exists(results_cache)) {
+    cache_file <- results_cache
   }
 }
 # Fall back to package location if not found in results_dir
-if(is.null(snapshot_file)) {
-  pkg_snapshot <- system.file("gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata", package="witchplot")
-  if(file.exists(pkg_snapshot)) {
-    snapshot_file <- pkg_snapshot
+if(is.null(cache_file)) {
+  pkg_cache <- system.file("gdxcompaR", "iiasadb", "iiasadb_data.parquet", package="witchplot")
+  if(file.exists(pkg_cache)) {
+    cache_file <- pkg_cache
   }
 }
 
 load_from_db <- TRUE
 snapshot_loaded_from_file <- FALSE
-if(!is.null(snapshot_file)) {
-input <- menu(c("Yes", "No"), title="There is a snapshot available. Do you want to load it?")
+if(!is.null(cache_file)) {
+input <- menu(c("Yes", "No"), title="There is a cached dataset available. Do you want to load it?")
 if(input==1) {
-  load(snapshot_file, envir=.GlobalEnv)
-  message("Loaded snapshot from: ", snapshot_file)
+  iiasadb_data <- arrow::read_parquet(cache_file)
+  assign("iiasadb_data", iiasadb_data, envir=.GlobalEnv)
+  hist_cache <- sub("iiasadb_data\\.parquet$", "iiasadb_historical.parquet", cache_file)
+  if(file.exists(hist_cache)) {
+    assign("iiasadb_historical", arrow::read_parquet(hist_cache), envir=.GlobalEnv)
+  } else {
+    assign("iiasadb_historical", data.frame(), envir=.GlobalEnv)
+  }
+  message("Loaded cached data from: ", cache_file)
   load_from_db <- FALSE
   snapshot_loaded_from_file <- TRUE
 }
@@ -568,10 +575,10 @@ if(load_from_db) {
   }
   message("Fetching data from IIASA database: ", iamc_databasename)
   partial_path <- file.path(results_dir[1], "iiasadb_partial.Rdata")
-  iiasadb_snapshot <- download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist="*", add_metadata=FALSE, autosave_path=partial_path)
-  names(iiasadb_snapshot) <- toupper(names(iiasadb_snapshot))
-  iiasadb_snapshot <- iiasadb_snapshot %>% dplyr::select(MODEL, SCENARIO, REGION, VARIABLE, UNIT, YEAR, VALUE) %>% dplyr::rename(value=VALUE) %>% dplyr::filter(!is.na(value))
-  assign("iiasadb_snapshot", iiasadb_snapshot, envir=.GlobalEnv)
+  iiasadb_data <- download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist="*", add_metadata=FALSE, autosave_path=partial_path)
+  names(iiasadb_data) <- toupper(names(iiasadb_data))
+  iiasadb_data <- iiasadb_data %>% dplyr::select(MODEL, SCENARIO, REGION, VARIABLE, UNIT, YEAR, VALUE) %>% dplyr::rename(value=VALUE) %>% dplyr::filter(!is.na(value))
+  assign("iiasadb_data", iiasadb_data, envir=.GlobalEnv)
 }
 } else {
 # Load files from all directories
@@ -680,11 +687,11 @@ for(results_path in results_dir) {
 
 if(length(file_list)==0) stop("No IAMC files found in any of the specified directories")
 
-iiasadb_snapshot <- data.table::rbindlist(file_list, fill=TRUE)
-message("\nCombined ", total_files, " file(s) from ", length(results_dir), " director(ies) with ", nrow(iiasadb_snapshot), " total rows")
+iiasadb_data <- data.table::rbindlist(file_list, fill=TRUE)
+message("\nCombined ", total_files, " file(s) from ", length(results_dir), " director(ies) with ", nrow(iiasadb_data), " total rows")
 
 # Convert year columns to numeric and pivot longer
-iiasadb_snapshot <- iiasadb_snapshot %>% dplyr::mutate(dplyr::across(matches("^\\d{4}$"), ~suppressWarnings(as.numeric(.x))))
+iiasadb_data <- iiasadb_data %>% dplyr::mutate(dplyr::across(matches("^\\d{4}$"), ~suppressWarnings(as.numeric(.x))))
 
 # Determine which columns to keep (not year columns)
 if(length(results_dir) > 1) {
@@ -693,25 +700,22 @@ if(length(results_dir) > 1) {
   non_year_cols <- c("MODEL", "SCENARIO", "REGION", "VARIABLE", "UNIT")
 }
 
-iiasadb_snapshot <- iiasadb_snapshot %>%
+iiasadb_data <- iiasadb_data %>%
   tidyr::pivot_longer(cols=-dplyr::all_of(non_year_cols), names_to="YEAR") %>%
   dplyr::mutate(YEAR=as.integer(YEAR)) %>%
   as.data.frame()
 
-assign("iiasadb_snapshot", iiasadb_snapshot, envir=.GlobalEnv)
+assign("iiasadb_data", iiasadb_data, envir=.GlobalEnv)
 }
-iiasadb_snapshot <- iiasadb_snapshot %>% dplyr::mutate(REGION=toupper(REGION))
-if(!exists("iiasadb_snapshot")) stop("Please check you specified a correct iiasadb file or connection.")
-
-# Also assign to iiasadb_data for use with get_iiasadb() function
-assign("iiasadb_data", iiasadb_snapshot, envir=.GlobalEnv)
+iiasadb_data <- iiasadb_data %>% dplyr::mutate(REGION=toupper(REGION))
+if(!exists("iiasadb_data")) stop("Please check you specified a correct iiasadb file or connection.")
 
 # Pre-load historical data if add_historical is enabled
 if(add_historical) {
   iiasadb_with_historical <- list()
   for(varname in map_var_hist$varname_model) {
-    if(nrow(iiasadb_snapshot %>% dplyr::filter(VARIABLE==varname))>0) {
-      iiasadb_with_historical[[varname]] <- add_historical_values(iiasadb_snapshot %>% dplyr::filter(VARIABLE==varname), varname=varname, iiasadb=TRUE, verbose=FALSE)
+    if(nrow(iiasadb_data %>% dplyr::filter(VARIABLE==varname))>0) {
+      iiasadb_with_historical[[varname]] <- add_historical_values(iiasadb_data %>% dplyr::filter(VARIABLE==varname), varname=varname, iiasadb=TRUE, verbose=FALSE)
     }
   }
   if (length(iiasadb_with_historical) > 0) {
@@ -720,11 +724,10 @@ if(add_historical) {
     iiasadb_historical <- data.frame()
   }
 } else {
-  # Create empty historical data frame
   iiasadb_historical <- data.frame()
 }
 
-assign("iiasadb_snapshot", iiasadb_snapshot, envir=.GlobalEnv)
+assign("iiasadb_data", iiasadb_data, envir=.GlobalEnv)
 assign("iiasadb_historical", iiasadb_historical, envir=.GlobalEnv)
 
 # Save the snapshot only if we fetched new data (not if we loaded from existing snapshot)
@@ -733,28 +736,19 @@ assign("iiasadb_historical", iiasadb_historical, envir=.GlobalEnv)
 should_save <- (!exists("snapshot_loaded_from_file") || !snapshot_loaded_from_file)
 
 if(should_save) {
-  save_path <- NULL
-  if(exists("results_dir") && length(results_dir) > 0) {
-    # Save to results_dir
-    save_path <- file.path(results_dir[1], "iiasadb_snapshot.Rdata")
-    save(iiasadb_snapshot, iiasadb_historical, file=save_path)
-    message("Saved snapshot to: ", save_path)
-  } else {
-    # Fall back to package location if results_dir doesn't exist
-    pkg_save_path <- system.file("gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata", package="witchplot")
-    if(pkg_save_path != "" && dir.exists(dirname(pkg_save_path))) {
-      save_path <- pkg_save_path
-      save(iiasadb_snapshot, iiasadb_historical, file=save_path)
-      message("Saved snapshot to: ", save_path)
-    } else {
-      # Try inst/ directory if package location doesn't work
-      inst_path <- file.path("inst", "gdxcompaR", "iiasadb", "iiasadb_snapshot.Rdata")
-      if(dir.exists(dirname(inst_path))) {
-        save_path <- inst_path
-        save(iiasadb_snapshot, iiasadb_historical, file=save_path)
-        message("Saved snapshot to: ", save_path)
-      }
-    }
+  save_dir <- if(exists("results_dir") && length(results_dir) > 0) results_dir[1] else NULL
+  if(is.null(save_dir)) {
+    # Fall back to inst/ when called from the source tree
+    inst_dir <- file.path("inst", "gdxcompaR", "iiasadb")
+    if(dir.exists(inst_dir)) save_dir <- inst_dir
+  }
+  if(!is.null(save_dir)) {
+    data_path <- file.path(save_dir, "iiasadb_data.parquet")
+    hist_path <- file.path(save_dir, "iiasadb_historical.parquet")
+    arrow::write_parquet(iiasadb_data, data_path)
+    if(nrow(iiasadb_historical) > 0)
+      arrow::write_parquet(iiasadb_historical, hist_path)
+    message("Saved data to: ", data_path)
   }
 }
 if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "iiasadb", package="witchplot"))
