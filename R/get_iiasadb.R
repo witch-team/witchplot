@@ -251,13 +251,17 @@ iiasa_login <- function(username, password=NULL) {
     password <- readline(prompt=paste0("IIASA password for '", username, "': "))
   }
   tryCatch({
-    ixmp4 <- import("ixmp4")
+    ixmp4 <- import("ixmp4", convert=FALSE)
     settings <- ixmp4$conf$settings
-    # credentials.set(key: str, username, password) - key is the manager URL string
-    auth_key <- as.character(py_to_r(settings$manager_url))
-    settings$credentials$set(auth_key, username, password)
-    settings$credentials$dump()  # ixmp4 uses dump() not save() to persist credentials
-    message("Successfully logged in as '", username, "'. Credentials stored for future sessions.")
+    # Must use plain string URL — set() does not accept HttpUrl objects via reticulate.
+    # Platform creation calls credentials.load() which reloads from disk, so we must
+    # dump() to disk BEFORE creating any Platform instance.
+    manager_url_str <- as.character(reticulate::py_to_r(settings$manager_url))
+    settings$credentials$set(manager_url_str, username, password)
+    settings$credentials$dump()
+    cred_path <- tryCatch(as.character(reticulate::py_to_r(settings$credentials$path)), error=function(e) "unknown")
+    message("Successfully logged in as '", username, "'.")
+    message("Credentials saved to: ", cred_path)
     message("You can now call run_iiasadb() without passing creds=.")
   }, error = function(e) {
     message("Could not store credentials: ", conditionMessage(e),
@@ -271,6 +275,20 @@ iiasa_login <- function(username, password=NULL) {
 #Function to download data from IIASA database
 download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname=NULL, modlist="*", scenlist="*", reglist="World", show_variables=FALSE, add_metadata=TRUE, run_pyam=NULL, creds=NULL, autosave_path=NULL) {
   pyam <- .ensure_pyam()
+
+  # For ixmp4-format databases (blue icon), pyam routes through ixmp4.Platform which
+  # ignores the creds= parameter and only reads stored credentials. Inject creds into
+  # ixmp4's in-memory credential store so the Platform finds them automatically.
+  if (!is.null(creds) && !is.null(creds$username) && !is.null(creds$password)) {
+    tryCatch({
+      ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
+      settings <- ixmp4$conf$settings
+      # Use plain string URL; dump() to disk so Platform.load() picks it up
+      manager_url_str <- as.character(reticulate::py_to_r(settings$manager_url))
+      settings$credentials$set(manager_url_str, creds$username, creds$password)
+      settings$credentials$dump()
+    }, error = function(e) NULL)  # silently ignore if not ixmp4-format db
+  }
 
   .check_ixmp4_auth()
 

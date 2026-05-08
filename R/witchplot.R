@@ -567,8 +567,25 @@ if(input==1) {
 }
 }
 if(load_from_db) {
-  # Resolve reglist="common": fetch aggregate hierarchy regions from ixmp4 + key countries
+  # Inject creds into ixmp4 credential store early so both region resolution
+  # and Platform creation (inside download_iiasadb) can authenticate.
+  if (!is.null(creds) && !is.null(creds$username) && !is.null(creds$password)) {
+    tryCatch({
+      ixmp4_tmp <- reticulate::import("ixmp4", convert=FALSE)
+      s <- ixmp4_tmp$conf$settings
+      manager_url_str <- as.character(reticulate::py_to_r(s$manager_url))
+      s$credentials$set(manager_url_str, creds$username, creds$password)
+      s$credentials$dump()
+    }, error = function(e) NULL)
+  }
+
+  # Resolve reglist="common": fetch aggregate hierarchy regions, with two-stage fallback.
+  # Stage 1: ixmp4 Platform (works for ixmp4-format / blue-icon databases).
+  # Stage 2: pyam Connection (works for old-format / grey-icon databases).
+  # Stage 3: fall back to "*" (all regions via pyam wildcard).
   if(identical(reglist, "common") && !is.null(iamc_databasename)) {
+    resolved <- FALSE
+    # Stage 1: ixmp4 region hierarchy (ixmp4-format databases)
     tryCatch({
       ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
       reg_df <- as.data.frame(reticulate::py_to_r(ixmp4$Platform(iamc_databasename)$regions$tabulate()))
@@ -576,11 +593,35 @@ if(load_from_db) {
       reglist <- c(reg_df$name[reg_df$hierarchy %in% common_hierarchies],
                    c("France", "Germany", "Spain", "Italy"))
       reglist <- unique(reglist[!is.na(reglist)])
-      message("Resolved 'common' to ", length(reglist), " regions.")
+      message("Resolved 'common' to ", length(reglist), " regions (via ixmp4).")
+      resolved <- TRUE
     }, error = function(e) {
-      message("Could not resolve 'common' regions, falling back to 'World': ", conditionMessage(e))
-      reglist <<- "World"
+      message("ixmp4 region lookup failed (", conditionMessage(e), ") — trying pyam connection...")
     })
+    # Stage 2: pyam Connection regions + heuristic for aggregates (old-format databases)
+    if (!resolved) {
+      tryCatch({
+        pyam_tmp <- .ensure_pyam()
+        conn <- if (!is.null(creds)) pyam_tmp$iiasa$Connection(iamc_databasename, creds=creds)
+                else pyam_tmp$iiasa$Connection(iamc_databasename)
+        all_regions <- as.character(reticulate::py_to_r(conn$regions()))
+        # Keep known aggregate patterns; if heuristic yields nothing, keep all
+        agg_pattern <- "^World$|^R5|^R10|^R9|OECD|LAM|ASIA|MAF|REF|\\bEU\\b|^Global$"
+        common_regs <- all_regions[grepl(agg_pattern, all_regions, ignore.case=TRUE)]
+        reglist <<- if (length(common_regs) > 0) common_regs else all_regions
+        message("Resolved 'common' to ", length(reglist), " regions (via pyam connection).")
+        resolved <<- TRUE
+      }, error = function(e) {
+        message("pyam region lookup also failed (", conditionMessage(e), ").")
+      })
+    }
+    # Stage 3: wildcard fallback — download all regions
+    if (!resolved) {
+      message("Could not resolve 'common' regions. Falling back to reglist='*' (all regions).\n",
+              "Tip: specify reglist= manually or run run_iiasadb(run_pyam='list_regions') first.\n",
+              "For auth errors, store credentials with: iiasa_login('your@email.com')")
+      reglist <- "*"
+    }
   }
   message("Fetching data from IIASA database: ", iamc_databasename)
   partial_path <- file.path(results_dir[1], "iiasadb_partial.Rdata")
@@ -588,7 +629,7 @@ if(load_from_db) {
     download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist=scenlist, add_metadata=FALSE, autosave_path=partial_path, creds=creds),
     error = function(e) {
       msg <- conditionMessage(e)
-      if (grepl("401|Unauthorized|forbidden|authentication|credentials|permission|access.denied|login", msg, ignore.case=TRUE)) {
+      if (grepl("401|403|Unauthorized|forbidden|authentication|credentials|permission|access.denied|login|insufficient.permissions|denied", msg, ignore.case=TRUE)) {
         stop("Access denied to '", iamc_databasename, "'.\n",
              "This database requires authentication. Store credentials once with:\n",
              "  iiasa_login('your@email.com')\n",
