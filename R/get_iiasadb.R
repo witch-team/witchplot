@@ -250,24 +250,34 @@ iiasa_login <- function(username, password=NULL) {
   if (is.null(password)) {
     password <- readline(prompt=paste0("IIASA password for '", username, "': "))
   }
+  # ixmp4 >= 0.15 API: Credentials(toml_file).set(url, user, pass) + .dump()
+  # Credentials are stored in ~/.local/share/ixmp4/credentials.toml
+  # On Windows, R's ~ → Documents; use USERPROFILE for the real home dir.
   tryCatch({
-    ixmp4 <- import("ixmp4", convert=FALSE)
-    settings <- ixmp4$conf$settings
-    # Must use plain string URL — set() does not accept HttpUrl objects via reticulate.
-    # Platform creation calls credentials.load() which reloads from disk, so we must
-    # dump() to disk BEFORE creating any Platform instance.
-    manager_url_str <- as.character(reticulate::py_to_r(settings$manager_url))
-    settings$credentials$set(manager_url_str, username, password)
-    settings$credentials$dump()
-    cred_path <- tryCatch(as.character(reticulate::py_to_r(settings$credentials$path)), error=function(e) "unknown")
-    message("Successfully logged in as '", username, "'.")
-    message("Credentials saved to: ", cred_path)
+    ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
+    pathlib <- reticulate::import("pathlib", convert=FALSE)
+    userprofile <- Sys.getenv("USERPROFILE")
+    home_dir <- if (nchar(userprofile) > 0) userprofile else path.expand("~")
+    cred_path_str <- file.path(home_dir, ".local", "share", "ixmp4", "credentials.toml")
+    cred_path <- pathlib$Path(cred_path_str)
+    dir.create(dirname(cred_path_str), recursive=TRUE, showWarnings=FALSE)
+    Credentials <- ixmp4$conf$credentials$Credentials
+    creds_inst <- Credentials(toml_file=cred_path)
+    manager_url <- "https://api.manager.ece.iiasa.ac.at/v1"
+    creds_inst$set(manager_url, username, password)
+    creds_inst$dump()
+    message("Credentials saved for '", username, "'.")
+    message("  File: ", cred_path_str)
     message("You can now call run_iiasadb() without passing creds=.")
+    return(invisible(NULL))
   }, error = function(e) {
-    message("Could not store credentials: ", conditionMessage(e),
-            "\nNote: IIASA server may be temporarily down.",
-            "\nWorkaround: pass creds=list(username='", username,
-            "', password='...') directly to run_iiasadb() or pyam_iiasa().")
+    message("Automatic login failed: ", conditionMessage(e), "\n",
+            "Please run once in a terminal:\n",
+            "  ixmp4 login ", username, "\n",
+            "Or:  python -m ixmp4 login ", username, "\n",
+            "After that, witchplot will work without needing creds=.\n",
+            "Workaround for this session: pass creds=list(username='", username,
+            "', password='...') to run_iiasadb().")
   })
   invisible(NULL)
 }
@@ -276,20 +286,6 @@ iiasa_login <- function(username, password=NULL) {
 download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname=NULL, modlist="*", scenlist="*", reglist="World", show_variables=FALSE, add_metadata=TRUE, run_pyam=NULL, creds=NULL, autosave_path=NULL) {
   pyam <- .ensure_pyam()
 
-  # For ixmp4-format databases (blue icon), pyam routes through ixmp4.Platform which
-  # ignores the creds= parameter and only reads stored credentials. Inject creds into
-  # ixmp4's in-memory credential store so the Platform finds them automatically.
-  if (!is.null(creds) && !is.null(creds$username) && !is.null(creds$password)) {
-    tryCatch({
-      ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
-      settings <- ixmp4$conf$settings
-      # Use plain string URL; dump() to disk so Platform.load() picks it up
-      manager_url_str <- as.character(reticulate::py_to_r(settings$manager_url))
-      settings$credentials$set(manager_url_str, creds$username, creds$password)
-      settings$credentials$dump()
-    }, error = function(e) NULL)  # silently ignore if not ixmp4-format db
-  }
-
   .check_ixmp4_auth()
 
   # Handle run_pyam operations - early return without downloading data
@@ -297,19 +293,41 @@ download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname
     return(.run_pyam_iiasa(pyam, database, run_pyam, creds=creds))
   }
 
+  # Detect database type: try ixmp4.Platform first (blue-icon / ixmp4-format databases).
+  # pyam.read_ixmp4(platform, ...) is required for ixmp4 databases — pyam.read_iiasa()
+  # uses the old Connection API which does not work with ixmp4-format databases.
+  platform <- NULL
+  is_ixmp4 <- FALSE
+  tryCatch({
+    ixmp4_mod <- reticulate::import("ixmp4", convert=FALSE)
+    platform <- ixmp4_mod$Platform(database)
+    is_ixmp4 <- TRUE
+    message("Connected to ixmp4 platform '", database, "'.")
+  }, error = function(e) NULL)
+
   #show variables in case
   if(show_variables) {
-    conn <- if (!is.null(creds)) pyam$iiasa$Connection(database, creds=creds) else pyam$iiasa$Connection(database)
-    result <- py_to_r(conn$variables())
-    print(result)
-    assign("iiasadb_variables_available", as.data.frame(result), envir=.GlobalEnv)
+    if (is_ixmp4) {
+      result <- as.data.frame(reticulate::py_to_r(platform$iamc$variables$tabulate()))
+      print(result)
+      assign("iiasadb_variables_available", result, envir=.GlobalEnv)
+    } else {
+      conn <- if (!is.null(creds)) pyam$iiasa$Connection(database, creds=creds) else pyam$iiasa$Connection(database)
+      result <- py_to_r(conn$variables())
+      print(result)
+      assign("iiasadb_variables_available", as.data.frame(result), envir=.GlobalEnv)
+    }
   }
-  # Download with per-model and/or per-region progress when multiple values specified
-  # meta=TRUE required (not 1) — pyam checks `meta is True` strictly for ixmp4 platforms
+
+  # .fetch_one: download one model×region batch via ixmp4 or old-format pyam
   .fetch_one <- function(mod, reg) {
-    args <- list(database, model=mod, scenario=scenlist, variable=varlist, region=reg, meta=TRUE)
-    if (!is.null(creds)) args$creds <- creds
-    do.call(pyam$read_iiasa, args)
+    if (is_ixmp4) {
+      pyam$read_ixmp4(platform, model=mod, scenario=scenlist, variable=varlist, region=reg)
+    } else {
+      args <- list(database, model=mod, scenario=scenlist, variable=varlist, region=reg, meta=TRUE)
+      if (!is.null(creds)) args$creds <- creds
+      do.call(pyam$read_iiasa, args)
+    }
   }
   models_list <- if (length(modlist) > 1) as.list(modlist) else list(modlist)
   region_list <- if (length(reglist) > 1) as.list(reglist) else list(reglist)

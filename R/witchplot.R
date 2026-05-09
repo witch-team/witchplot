@@ -567,15 +567,12 @@ if(input==1) {
 }
 }
 if(load_from_db) {
-  # Inject creds into ixmp4 credential store early so both region resolution
-  # and Platform creation (inside download_iiasadb) can authenticate.
+  # Authenticate via creds= early so both region resolution and download can access the db.
+  # Newer ixmp4 requires manager.login() (OAuth2 JWT) not credentials.set(user, pass).
   if (!is.null(creds) && !is.null(creds$username) && !is.null(creds$password)) {
     tryCatch({
       ixmp4_tmp <- reticulate::import("ixmp4", convert=FALSE)
-      s <- ixmp4_tmp$conf$settings
-      manager_url_str <- as.character(reticulate::py_to_r(s$manager_url))
-      s$credentials$set(manager_url_str, creds$username, creds$password)
-      s$credentials$dump()
+      ixmp4_tmp$conf$settings$manager$login(creds$username, creds$password)
     }, error = function(e) NULL)
   }
 
