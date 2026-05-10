@@ -91,6 +91,7 @@
 #   "ixmp4_regions"       - Platform(db).regions.tabulate()
 #   "ixmp4_units"         - Platform(db).units.tabulate()
 .run_pyam_iiasa <- function(pyam, database=NULL, operation, creds=NULL) {
+  require(reticulate)
   needs_db <- !operation %in% c("list_platforms", "valid_connections")
   if (needs_db && is.null(database)) {
     stop("'iamc_databasename' is required for run_pyam='", operation, "'.\n",
@@ -284,6 +285,7 @@ iiasa_login <- function(username, password=NULL) {
 
 #Function to download data from IIASA database
 download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname=NULL, modlist="*", scenlist="*", reglist="World", show_variables=FALSE, add_metadata=TRUE, run_pyam=NULL, creds=NULL, autosave_path=NULL) {
+  require(reticulate)
   pyam <- .ensure_pyam()
 
   .check_ixmp4_auth()
