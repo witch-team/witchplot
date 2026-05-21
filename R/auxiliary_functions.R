@@ -41,7 +41,15 @@ yeartot <- function(year, tlen = NULL){
 
 convert_pdftopng <- F #converts all created pdfs to png for better quality (needs pdftopng.exe in your PATH. Download from http://www.xpdfreader.com/download.html)
 saveplot <- function(plotname, width=7, height=5, text_size=16, suffix="", transparent=FALSE, add_title=TRUE, forpaper=F, plotdata=NA){
-  if(!deploy_online) if(!dir.exists(graphdir)){dir.create(graphdir)} #create directory for graphs
+  # Resolve session variables with option/default fallbacks so that saveplot()
+  # works outside of run_witch() / run_iiasadb() / etc. (e.g. in standalone scripts).
+  # Global-env variables (set by run_*) take precedence over options.
+  deploy_online      <- if (exists("deploy_online",      envir = .GlobalEnv)) get("deploy_online",      envir = .GlobalEnv) else getOption("deploy_online",      FALSE)
+  figure_format      <- if (exists("figure_format",      envir = .GlobalEnv)) get("figure_format",      envir = .GlobalEnv) else getOption("figure_format",      "png")
+  write_plotdata_csv <- if (exists("write_plotdata_csv", envir = .GlobalEnv)) get("write_plotdata_csv", envir = .GlobalEnv) else getOption("write_plotdata_csv", FALSE)
+  graphdir           <- if (exists("graphdir",           envir = .GlobalEnv)) get("graphdir",           envir = .GlobalEnv) else getOption("graphdir",           file.path(getwd(), "graphs"))
+
+  if(!deploy_online) if(!dir.exists(graphdir)){dir.create(graphdir, recursive = TRUE)} #create directory for graphs
   if(figure_format!="png"){transparent = FALSE}
   if(figure_format=="pdf"){plot_device=cairo_pdf}else{plot_device=figure_format}
   if(figure_format=="eps"){plot_device=cairo_ps}
