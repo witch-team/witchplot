@@ -331,6 +331,19 @@ download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname
       do.call(pyam$read_iiasa, args)
     }
   }
+  # For ixmp4 platforms: if modlist="*", resolve actual model names first.
+  # Fetching all models at once per region is a large query that times out;
+  # splitting into one model × one region per request is much more reliable.
+  if (is_ixmp4 && length(modlist) == 1 && modlist == "*") {
+    models_resolved <- tryCatch({
+      runs_df <- as.data.frame(reticulate::py_to_r(platform$runs$tabulate()))
+      sort(unique(as.character(runs_df$model)))
+    }, error = function(e) NULL)
+    if (!is.null(models_resolved) && length(models_resolved) > 0) {
+      message("Resolved ", length(models_resolved), " models — will download one model×region batch at a time.")
+      modlist <- models_resolved
+    }
+  }
   models_list <- if (length(modlist) > 1) as.list(modlist) else list(modlist)
   region_list <- if (length(reglist) > 1) as.list(reglist) else list(reglist)
   if (length(models_list) > 1 || length(region_list) > 1) {
@@ -364,11 +377,20 @@ download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname
           .fetch_one(mod, reg),
           error = function(e) {
             msg <- conditionMessage(e)
-            if (grepl("No scenario data|no data|No data", msg, ignore.case=TRUE))
+            if (grepl("No scenario data|no data|No data", msg, ignore.case=TRUE)) {
               message("  -> No data for: ", label, " — skipping.")
-            else
+              NULL
+            } else if (grepl("timeout|Timeout|timed out|ReadTimeout", msg, ignore.case=TRUE)) {
+              message("  -> Timeout, retrying in 15s...")
+              Sys.sleep(15)
+              tryCatch(.fetch_one(mod, reg), error = function(e2) {
+                message("  -> Retry failed: ", conditionMessage(e2), " — skipping.")
+                NULL
+              })
+            } else {
               message("  -> Error for: ", label, " — ", msg, " — skipping.")
-            NULL
+              NULL
+            }
           }
         )
         if (!is.null(res) && !inherits(res, "python.builtin.NoneType")) {
