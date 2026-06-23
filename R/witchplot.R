@@ -576,33 +576,50 @@ if(load_from_db) {
     }, error = function(e) NULL)
   }
 
-  # Resolve reglist="common": fetch aggregate hierarchy regions, with two-stage fallback.
-  # Stage 1: ixmp4 Platform (works for ixmp4-format / blue-icon databases).
-  # Stage 2: pyam Connection (works for old-format / grey-icon databases).
-  # Stage 3: fall back to "*" (all regions via pyam wildcard).
-  if(identical(reglist, "common") && !is.null(iamc_databasename)) {
+  # Resolve reglist: expand hierarchy names to their member regions.
+  # "common"            → regions in common/R5/R9/R10/Regional Organizations + key countries
+  # Any hierarchy name  → all regions belonging to that hierarchy (e.g. "R10", "R5")
+  # Direct region names → kept as-is (e.g. "World", "China")
+  # Stage 1: ixmp4 Platform (ixmp4-format databases).
+  # Stage 2 & 3: pyam fallback + wildcard, only when "common" was specified.
+  if (!is.null(iamc_databasename)) {
+    has_common <- "common" %in% reglist
     resolved <- FALSE
-    # Stage 1: ixmp4 region hierarchy (ixmp4-format databases)
     tryCatch({
       ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
       reg_df <- as.data.frame(reticulate::py_to_r(ixmp4$Platform(iamc_databasename)$regions$tabulate()))
-      common_hierarchies <- c("common", "R5", "R9", "R10", "Regional Organizations")
-      reglist <- c(reg_df$name[reg_df$hierarchy %in% common_hierarchies],
-                   c("France", "Germany", "Spain", "Italy"))
-      reglist <- unique(reglist[!is.na(reglist)])
-      message("Resolved 'common' to ", length(reglist), " regions (via ixmp4).")
+      known_hierarchies <- unique(as.character(reg_df$hierarchy))
+      expanded <- character(0)
+      any_expanded <- FALSE
+      for (r in reglist) {
+        if (identical(r, "common")) {
+          common_h <- c("common", "R5", "R9", "R10", "Regional Organizations")
+          h_regions <- as.character(reg_df$name[reg_df$hierarchy %in% common_h])
+          expanded <- c(expanded, h_regions, "France", "Germany", "Spain", "Italy")
+          any_expanded <- TRUE
+        } else if (r %in% known_hierarchies) {
+          h_regions <- as.character(reg_df$name[reg_df$hierarchy == r])
+          message("Expanded hierarchy '", r, "' to ", length(h_regions), " regions.")
+          expanded <- c(expanded, h_regions)
+          any_expanded <- TRUE
+        } else {
+          expanded <- c(expanded, r)
+        }
+      }
+      if (any_expanded) reglist <- unique(expanded[!is.na(expanded) & nchar(expanded) > 0])
+      if (has_common) message("Resolved 'common' to ", length(reglist), " regions (via ixmp4).")
       resolved <- TRUE
     }, error = function(e) {
-      message("ixmp4 region lookup failed (", conditionMessage(e), ") — trying pyam connection...")
+      if (has_common)
+        message("ixmp4 region lookup failed (", conditionMessage(e), ") — trying pyam connection...")
     })
-    # Stage 2: pyam Connection regions + heuristic for aggregates (old-format databases)
-    if (!resolved) {
+    # Stage 2 & 3: fallback only needed when "common" was specified and ixmp4 failed
+    if (!resolved && has_common) {
       tryCatch({
         pyam_tmp <- .ensure_pyam()
         conn <- if (!is.null(creds)) pyam_tmp$iiasa$Connection(iamc_databasename, creds=creds)
                 else pyam_tmp$iiasa$Connection(iamc_databasename)
         all_regions <- as.character(reticulate::py_to_r(conn$regions()))
-        # Keep known aggregate patterns; if heuristic yields nothing, keep all
         agg_pattern <- "^World$|^R5|^R10|^R9|OECD|LAM|ASIA|MAF|REF|\\bEU\\b|^Global$"
         common_regs <- all_regions[grepl(agg_pattern, all_regions, ignore.case=TRUE)]
         reglist <<- if (length(common_regs) > 0) common_regs else all_regions
@@ -611,13 +628,12 @@ if(load_from_db) {
       }, error = function(e) {
         message("pyam region lookup also failed (", conditionMessage(e), ").")
       })
-    }
-    # Stage 3: wildcard fallback — download all regions
-    if (!resolved) {
-      message("Could not resolve 'common' regions. Falling back to reglist='*' (all regions).\n",
-              "Tip: specify reglist= manually or run run_iiasadb(run_pyam='list_regions') first.\n",
-              "For auth errors, store credentials with: iiasa_login('your@email.com')")
-      reglist <- "*"
+      if (!resolved) {
+        message("Could not resolve 'common' regions. Falling back to reglist='*' (all regions).\n",
+                "Tip: specify reglist= manually or run run_iiasadb(run_pyam='list_regions') first.\n",
+                "For auth errors, store credentials with: iiasa_login('your@email.com')")
+        reglist <- "*"
+      }
     }
   }
   message("Fetching data from IIASA database: ", iamc_databasename)

@@ -17,6 +17,11 @@
     error = function(e) NULL
   )
 
+  # Suppress noisy Python warnings from requests and pyam dependencies
+  tryCatch(reticulate::py_run_string(
+    "import warnings\nwarnings.filterwarnings('ignore', message='urllib3', category=Warning)\nwarnings.filterwarnings('ignore', category=FutureWarning, module='pyam')"
+  ), error = function(e) NULL)
+
   if (is.null(pyam)) {
     message("Python package 'pyam' not found. Installing pyam-iamc...")
     # reticulate >= 1.40 with uv uses ephemeral environments: py_require() is
