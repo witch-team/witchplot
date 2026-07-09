@@ -23,7 +23,6 @@ get_gdx_variable_list <- function(results_dir, filelist, filter_time_dependent=F
     for(item in c("variables", "parameters")) {
       info_item <- .gdx[[item]]
       info_item <- info_item[info_item$dim<=4,]
-      info_item <- info_item[sapply(info_item$domnames, function(x) "t" %in% x),]
       list_of_variables <- c(list_of_variables, info_item$name)
     }
   }
