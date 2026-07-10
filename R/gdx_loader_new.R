@@ -11,38 +11,55 @@
 .discover_gdx_files <- function(results_dir, restrict_files = "results_", exclude_files = "") {
   message("Searching for GDX files in: ", results_dir)
 
-  # Find all GDX files
-  all_files <- gsub("\\.gdx$", "", list.files(
-    path = results_dir,
-    pattern = "\\.gdx$",
-    full.names = FALSE,
-    recursive = FALSE
-  ))
+  # Helper: list GDX basenames in dir, return relative paths (with optional prefix)
+  .find_gdx_in_dir <- function(dir, prefix = "") {
+    if (!dir.exists(dir)) return(character(0))
+    found <- gsub("\\.gdx$", "", list.files(
+      path = dir, pattern = "\\.gdx$", full.names = FALSE, recursive = FALSE
+    ))
+    if (length(found) > 0 && nchar(prefix) > 0) found <- file.path(prefix, found)
+    found
+  }
+
+  # Files directly in results_dir
+  all_files <- .find_gdx_in_dir(results_dir)
+
+  # Also search results_dir/results/ and its immediate subdirectories
+  results_subdir <- file.path(results_dir, "results")
+  if (dir.exists(results_subdir)) {
+    all_files <- c(all_files, .find_gdx_in_dir(results_subdir, "results"))
+    sub_dirs <- list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)
+    for (sub_dir in sub_dirs[nchar(sub_dirs) > 0]) {
+      all_files <- c(all_files, .find_gdx_in_dir(
+        file.path(results_subdir, sub_dir), file.path("results", sub_dir)
+      ))
+    }
+  }
 
   if (length(all_files) == 0) {
     stop("No GDX files found in: ", results_dir)
   }
 
-  # ALWAYS filter to files starting with "results_" first
-  all_files <- all_files[stringr::str_starts(all_files, "results_")]
+  # Filter on basename: must contain "results_" (matches old str_detect behaviour)
+  all_files <- all_files[stringr::str_detect(basename(all_files), "results_")]
 
   if (length(all_files) == 0) {
     stop("No GDX files starting with 'results_' found in: ", results_dir)
   }
 
-  # Apply additional inclusion filters (if restrict_files is not "results_")
+  # Apply additional inclusion filters on basename (if restrict_files is not "results_")
   if (!is.null(restrict_files) && restrict_files != "" && restrict_files != "results_") {
     patterns <- if (is.character(restrict_files)) restrict_files else unlist(restrict_files)
     filtered <- all_files
     for (pattern in patterns) {
-      filtered <- filtered[stringr::str_detect(filtered, pattern)]
+      filtered <- filtered[stringr::str_detect(basename(filtered), pattern)]
     }
     all_files <- unique(filtered)
   }
 
-  # Apply exclusion filter
+  # Apply exclusion filter on basename
   if (!is.null(exclude_files) && exclude_files != "") {
-    all_files <- all_files[!stringr::str_detect(all_files, paste(exclude_files, collapse = "|"))]
+    all_files <- all_files[!stringr::str_detect(basename(all_files), paste(exclude_files, collapse = "|"))]
   }
 
   if (length(all_files) == 0) {
@@ -72,15 +89,51 @@
     valid_files <- intersect(names(scenlist_custom), filelist)
     scenlist <- scenlist_custom[valid_files]
   } else {
-    # Auto-generate scenario names from filenames
-    scenario_names <- filelist
+    # Auto-generate scenario names from basename only (strip path prefix first)
+    basenames <- basename(filelist)
+    scenario_names <- basenames
     if (!is.null(removepattern) && removepattern != "") {
-      scenario_names <- gsub(paste(removepattern, collapse = "|"), "", filelist)
+      scenario_names <- gsub(paste(removepattern, collapse = "|"), "", basenames)
+    }
+    # Disambiguate duplicate names by prepending the subfolder group label
+    dups <- duplicated(scenario_names) | duplicated(scenario_names, fromLast = TRUE)
+    if (any(dups)) {
+      group_labels <- sapply(filelist, function(f) {
+        parts <- strsplit(f, "/", fixed = TRUE)[[1]]
+        if (length(parts) >= 3) parts[length(parts) - 1L]
+        else if (length(parts) == 2) parts[1L]
+        else ""
+      })
+      for (i in which(dups)) {
+        if (nchar(group_labels[i]) > 0)
+          scenario_names[i] <- paste0(scenario_names[i], " [", group_labels[i], "]")
+      }
     }
     scenlist <- setNames(scenario_names, filelist)
   }
 
   scenlist
+}
+
+#' Extract subfolder group labels for each file in filelist
+#'
+#' Files directly in results_dir or in results_dir/results/ get group label "".
+#' Files in results_dir/results/subdir/ get group label "subdir".
+#'
+#' @param filelist Character vector of GDX file IDs (as returned by .discover_gdx_files)
+#' @return Named character vector: fileid -> group label
+#' @keywords internal
+.get_scenlist_groups <- function(filelist) {
+  group_labels <- sapply(filelist, function(f) {
+    parts <- strsplit(f, "/", fixed = TRUE)[[1]]
+    # 1 part:  "results_foo"             → top-level root → ""
+    # 2 parts: "results/results_foo"     → directly in results/ → "results"
+    # 3 parts: "results/bar/results_foo" → in subdir → "bar"
+    if (length(parts) >= 3) parts[length(parts) - 1L]
+    else if (length(parts) == 2) parts[1L]
+    else ""
+  })
+  setNames(group_labels, filelist)
 }
 
 #' Load GDX session data
@@ -156,6 +209,7 @@
     region_palette = region_info$palette,
     region_palette_short = region_info$palette_short,
     region_palette_long = region_info$palette_long,
+    rice_region_names = region_info$rice_region_names,
     stochastic_files = metadata$stochastic_files,
     var_descriptions = metadata$var_descriptions
   )
@@ -241,6 +295,19 @@
   # Get regions from GDX files
   regions <- .get_regions_from_gdx(filelist, results_dir)
 
+  # Try to read region long names from data_{reg_id}/n.inc element text
+  # (gdxtools does not expose set element text from GDX files)
+  rice_region_names <- tryCatch({
+    n_inc_path <- file.path(results_dir[1], paste0("data_", reg_id), "n.inc")
+    if(file.exists(n_inc_path)) {
+      lines   <- readLines(n_inc_path, warn=FALSE)
+      matches <- regmatches(lines, regexec("^\\s*(\\w+)\\s+'(.+)'", lines))
+      valid   <- Filter(function(x) length(x) == 3, matches)
+      if(length(valid) > 0)
+        setNames(sapply(valid, `[`, 3), sapply(valid, `[`, 2))
+      else NULL
+    } else NULL
+  }, error = function(e) NULL)
 
   # Create color palettes
   palette <- get_region_palette(regions, reg_id)
@@ -263,7 +330,8 @@
     reg_id = reg_id,
     palette = palette,
     palette_short = palette_short,
-    palette_long = palette_long
+    palette_long = palette_long,
+    rice_region_names = rice_region_names
   )
 }
 
@@ -307,6 +375,7 @@
 .set_global_session_vars <- function(session_data) {
   assign("filelist", session_data$filelist, envir = .GlobalEnv)
   assign("scenlist", session_data$scenlist, envir = .GlobalEnv)
+  assign("scenlist_groups", .get_scenlist_groups(session_data$filelist), envir = .GlobalEnv)
   assign("file_group_columns", session_data$file_group_columns, envir = .GlobalEnv)
   assign("reg_id", session_data$reg_id, envir = .GlobalEnv)
   assign("witch_regions", session_data$regions, envir = .GlobalEnv)
@@ -316,5 +385,7 @@
   assign("region_palette_longnames", session_data$region_palette_long, envir = .GlobalEnv)
   assign("stochastic_files", session_data$stochastic_files, envir = .GlobalEnv)
   assign("all_var_descriptions", session_data$var_descriptions, envir = .GlobalEnv)
+  if(!is.null(session_data$rice_region_names))
+    assign("rice_region_names", session_data$rice_region_names, envir = .GlobalEnv)
   invisible(NULL)
 }

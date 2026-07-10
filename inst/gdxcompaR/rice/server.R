@@ -1,18 +1,80 @@
 shinyServer(function(input, output, session) {
+# Re-initialize on session start to pick up new files (supports F5)
+.initialize_witchplot_session()
+
+# Reactive trigger for file refresh
+refresh_trigger <- reactiveVal(0)
+
+# Observe refresh button
+observeEvent(input$refresh_files, {
+  withProgress(message = 'Refreshing GDX files...', value = 0, {
+    .initialize_witchplot_session()
+    refresh_trigger(refresh_trigger() + 1)
+  })
+})
+
+dataBrowserServer("data_browser")  # DATA_BROWSER
 verbose <- FALSE
 growth_rate <- FALSE
-list_of_variables <- get_gdx_variable_list_simple(results_dir, filelist)
-output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
-output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE)})
-output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")})
+
+# Make list of variables reactive so it updates on refresh
+list_of_variables_reactive <- reactive({
+  refresh_trigger()
+  get_gdx_variable_list_simple(results_dir, filelist)
+})
+
+output$select_scenarios <- renderUI({
+  refresh_trigger()
+  create_scenario_selector(scenlist)
+})
+
+output$select_variable <- renderUI({
+  list_of_variables <- list_of_variables_reactive()
+  create_variable_selector(list_of_variables, default_var="E", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)
+})
+
+output$select_regions <- renderUI({
+  refresh_trigger()
+  create_region_selector(witch_regions, include_aggregates=c("World"), default_region="World")
+})
+
 variable_selected_reactive <- reactive({input$variable_selected})
+
+set_info_reactive <- reactive({
+  refresh_trigger()
+  variable <- variable_selected_reactive()
+  list_of_variables <- list_of_variables_reactive()
+  if(is.null(variable)) variable <- list_of_variables_reactive()[1]
+  field_show <- input$field
+  afd <- get_witch(variable, , field=field_show)
+  extract_additional_sets(afd, file_group_columns)
+})
+
 output$varname <- renderText({
-  var_text <- paste0("Variable: ", variable_selected_reactive())
-  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
-    var_text <- paste0(var_text, " - Element: ", paste(input$additional_set_id_selected, collapse=","))
+  var <- variable_selected_reactive()
+  if(is.null(var) || length(var) == 0) return("")
+  desc <- ""
+  if(exists("all_var_descriptions") && !is.null(var) && var %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == var]
+    if(length(d) > 0 && nchar(d[1]) > 0) desc <- paste0(" \u2014 ", d[1])
+  }
+  var_text <- paste0(var, desc)
+  set_info <- set_info_reactive()
+  # Apply same fallback logic as renderPlot so the title always reflects what is shown
+  eff_sel <- input$additional_set_id_selected
+  if(is.null(eff_sel) || (set_info$additional_set_id != "na" && (eff_sel[1] == "na" || !(eff_sel[1] %in% set_info$set_elements)))) {
+    eff_sel <- set_info$set_elements[1]
+  }
+  if(set_info$additional_set_id != "na") {
+    var_text <- paste0(var_text, " [", paste(eff_sel, collapse=", "), "]")
+  }
+  if(set_info$additional_set_id2 != "na") {
+    eff_sel2 <- input$additional_set_id_selected2
+    if(is.null(eff_sel2) || eff_sel2[1] == "na") eff_sel2 <- set_info$set_elements2[1]
+    var_text <- paste0(var_text, " [", paste(eff_sel2, collapse=", "), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
-    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+    var_text <- paste0(var_text, " \u2014 ", input$regions_selected[1])
   }
   var_text
 })
@@ -28,7 +90,7 @@ field_show <- input$field
 growth_rate <- input$growth_rate
 stacked_plot <- input$stacked_plot
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)  # Always loads with historical if add_historical was TRUE at startup
 if(verbose) print(str_glue("Variable {variable} loaded."))
 
@@ -40,12 +102,16 @@ if(!has_time) {
   set_info <- extract_additional_sets(afd, file_group_columns)
   output$choose_additional_set <- renderUI({
     variable <- variable_selected_reactive()
-    if(is.null(variable)) variable <- list_of_variables[1]
+    if(is.null(variable)) variable <- list_of_variables_reactive()[1]
     sel <- input$additional_set_id_selected
     size_elements <- min(length(set_info$set_elements), 5)
-    selectInput("additional_set_id_selected", "Index 1:", set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+    label1 <- set_info$additional_set_id
+    if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+      d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+      if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+    }
+    selectInput("additional_set_id_selected", paste0(label1, ":"), set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
   })
-
   filtered_data <- afd
   # Order pathdir factor according to results_dir vector
   if("pathdir" %in% names(filtered_data) && length(results_dir) > 1) {
@@ -55,7 +121,6 @@ if(!has_time) {
   additional_set_selected <- input$additional_set_id_selected
   regions <- input$regions_selected
   scenarios <- input$scenarios_selected
-
   if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
   if(set_info$additional_set_id != "na") {
     filtered_data[[set_info$additional_set_id]] <- tolower(filtered_data[[set_info$additional_set_id]])
@@ -72,46 +137,72 @@ if(!has_time) {
   # Show plot as usual
   set_info <- extract_additional_sets(afd, file_group_columns)
   output$choose_additional_set <- renderUI({
-  variable <- variable_selected_reactive()
-  if(is.null(variable)) variable <- list_of_variables[1]
-  sel <- input$additional_set_id_selected
-  size_elements <- min(length(set_info$set_elements), 5)
-  selectInput("additional_set_id_selected", "Index 1:", set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+    if(set_info$additional_set_id == "na") return(NULL)
+    variable <- variable_selected_reactive()
+    if(is.null(variable)) variable <- list_of_variables_reactive()[1]
+    sel <- input$additional_set_id_selected
+    size_elements <- min(length(set_info$set_elements), 5)
+    label1 <- set_info$additional_set_id
+    if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+      d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+      if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+    }
+    selectInput("additional_set_id_selected", paste0(label1, ":"), set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+  })
+  output$choose_additional_set2 <- renderUI({
+    if(set_info$additional_set_id2 == "na") return(NULL)
+    sel2 <- input$additional_set_id_selected2
+    size_elements2 <- min(length(set_info$set_elements2), 5)
+    label2 <- set_info$additional_set_id2
+    if(exists("all_var_descriptions") && label2 %in% all_var_descriptions$name) {
+      d <- all_var_descriptions$description[all_var_descriptions$name == label2]
+      if(length(d) > 0 && nchar(d[1]) > 0) label2 <- paste0(label2, " (", d[1], ")")
+    }
+    selectInput("additional_set_id_selected2", paste0(label2, ":"), set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
   })
   yearlim <- input$yearlim
   additional_set_selected <- input$additional_set_id_selected
+  additional_set_selected2 <- input$additional_set_id_selected2
   regions <- input$regions_selected
   scenarios <- input$scenarios_selected
   if(is.null(regions)) regions <- display_regions
   if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
   if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
-  plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, NULL, NULL, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
+  if(set_info$additional_set_id2 != "na" && (is.null(additional_set_selected2) || additional_set_selected2[1] == "na")) additional_set_selected2 <- set_info$set_elements2[1]
+  plot_data <- prepare_plot_data(variable, field_show, yearlim, scenarios, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2, regions, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
   afd <- plot_data$data
   unit_conv <- plot_data$unit_conv
   if(growth_rate){
-  unit_conv$unit <- " % p.a."
-  unit_conv$convert <- 1
+    unit_conv$unit <- " % p.a."
+    unit_conv$convert <- 1
   }
-  # If stacked plot is requested, use stacked area plot
+  # Pre-compute year column (respects tlen for variable time steps)
+  if(!"year" %in% names(afd)) {
+    if("tlen" %in% names(afd)) {
+      afd$year <- ttoyear(afd$t, afd$tlen)
+    } else {
+      afd$year <- ttoyear(afd$t)
+    }
+  }
   if(stacked_plot && length(regions) > 1){
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
-  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
-  if(!is.null(scenarios) && length(scenarios)>1) p <- p + facet_wrap(. ~ file)
+    p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
+    p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
+    if(!is.null(scenarios) && length(scenarios)>1) p <- p + facet_wrap(. ~ file)
   } else if(regions[1]=="World" | length(regions)==1){
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
-  if(ylim_zero) p <- p + ylim(0, NA)
-  if(show_historical) {
-    p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
-    p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=file), size=4.0, shape=18)
-  }
-  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
+    p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
+    if(ylim_zero) p <- p + ylim(0, NA)
+    if(show_historical) {
+      p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
+      p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=file), size=4.0, shape=18)
+    }
+    p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
   }else{
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
-  if(show_historical) {
-    p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
-    p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=n, shape=file), size=4.0)
-  }
-  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow=2), linetype=guide_legend(title=NULL))
+    p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
+    if(show_historical) {
+      p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
+      p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=n, shape=file), size=4.0)
+    }
+    p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow=2), linetype=guide_legend(title=NULL))
   }
   if(length(results_dir)!=1 && !stacked_plot) p <- p + facet_grid(. ~ pathdir)
   if(nrow(afd)>0) {
@@ -124,25 +215,44 @@ show_historical <- input$add_historical  # Checkbox controls plot visibility
 ylim_zero <- input$ylim_zero
 field_show <- input$field
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
 output$choose_additional_set <- renderUI({
+if(set_info$additional_set_id == "na") return(NULL)
 variable <- variable_selected_reactive()
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
-selectInput("additional_set_id_selected", "Index 1:", set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+label1 <- set_info$additional_set_id
+if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+  d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+  if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+}
+selectInput("additional_set_id_selected", paste0(label1, ":"), set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+})
+output$choose_additional_set2 <- renderUI({
+if(set_info$additional_set_id2 == "na") return(NULL)
+sel2 <- input$additional_set_id_selected2
+size_elements2 <- min(length(set_info$set_elements2), 5)
+label2 <- set_info$additional_set_id2
+if(exists("all_var_descriptions") && label2 %in% all_var_descriptions$name) {
+  d <- all_var_descriptions$description[all_var_descriptions$name == label2]
+  if(length(d) > 0 && nchar(d[1]) > 0) label2 <- paste0(label2, " (", d[1], ")")
+}
+selectInput("additional_set_id_selected2", paste0(label2, ":"), set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected
+additional_set_selected2 <- input$additional_set_id_selected2
 regions <- input$regions_selected
 scenarios <- input$scenarios_selected
 if(is.null(regions)) regions <- display_regions
 if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
 if((set_info$additional_set_id!="na" & additional_set_selected[1]=="na") | !(additional_set_selected[1] %in% set_info$set_elements)) additional_set_selected <- set_info$set_elements[1]
-afd <- subset_by_additional_sets(afd, set_info$additional_set_id, additional_set_selected, NULL, NULL)
+if(set_info$additional_set_id2 != "na" && (is.null(additional_set_selected2) || additional_set_selected2[1] == "na")) additional_set_selected2 <- set_info$set_elements2[1]
+afd <- subset_by_additional_sets(afd, set_info$additional_set_id, additional_set_selected, set_info$additional_set_id2, additional_set_selected2)
 # Order pathdir factor according to results_dir vector
 if("pathdir" %in% names(afd) && length(results_dir) > 1) {
   pathdir_levels <- basename(results_dir)
@@ -168,7 +278,7 @@ if(scen==scenarios[1]) afd_hist_temp <- afd_hist else afd_hist_temp <- rbind(afd
 afd <- rbind(afd, afd_hist)
 unit_conv <- unit_conversion(variable)
 afd$value <- afd$value * unit_conv$convert
-p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p_stacked <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 p_stacked <- p_stacked + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios)) p_stacked <- p_stacked + facet_wrap(. ~ file)
 if(nrow(afd)>0) print(p_stacked + labs(title=variable))
@@ -180,7 +290,7 @@ field_show <- input$field
 growth_rate <- input$growth_rate
 stacked_plot <- input$stacked_plot
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
@@ -200,11 +310,11 @@ unit_conv$convert <- 1
 }
 # Create plot using same logic as gdxcompaRplot
 if(stacked_plot && length(regions) > 1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, fill=n)) + geom_area(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_fill_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(fill=guide_legend(title=NULL, nrow=2))
 if(!is.null(scenarios) && length(scenarios)>1) p <- p + facet_wrap(. ~ file)
 } else if(regions[1]=="World" | length(regions)==1){
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 if(ylim_zero) p <- p + ylim(0, NA)
 if(show_historical) {
   p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
@@ -212,7 +322,7 @@ if(show_historical) {
 }
 p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
 }else{
-p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(ttoyear(t), value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + scale_x_continuous(breaks = scales::breaks_pretty(n = 8), limits = c(yearlim[1], yearlim[2]))
 if(show_historical) {
   p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
   p <- p + geom_point(data=subset(afd, n %in% regions & str_detect(file, "valid")), aes(year, value, colour=n, shape=file), size=4.0)

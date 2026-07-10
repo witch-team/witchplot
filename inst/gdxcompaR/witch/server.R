@@ -1,4 +1,19 @@
 shinyServer(function(input, output, session) {
+# Re-initialize on session start to pick up new files (supports F5)
+.initialize_witchplot_session()
+
+# Reactive trigger for file refresh
+refresh_trigger <- reactiveVal(0)
+
+# Observe refresh button
+observeEvent(input$refresh_files, {
+  withProgress(message = 'Refreshing GDX files...', value = 0, {
+    .initialize_witchplot_session()
+    refresh_trigger(refresh_trigger() + 1)
+  })
+})
+
+dataBrowserServer("data_browser")  # DATA_BROWSER
 verbose <- FALSE
 if(deploy_online){
 suppressPackageStartupMessages(require(tidyverse))
@@ -7,18 +22,38 @@ require(shinyWidgets)
 add_historical_values <- function(x, varname, iiasadb, verbose){return(x)}
 get_witch <- function(variable, field){return(allvariables[[variable]])}
 }
-list_of_variables <- get_gdx_variable_list(results_dir, filelist, filter_time_dependent=FALSE)
-output$select_scenarios <- renderUI({create_scenario_selector(scenlist)})
-output$select_variable <- renderUI({create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE)})
-output$select_regions <- renderUI({create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")})
+
+# Make list of variables reactive so it updates on refresh
+list_of_variables_reactive <- reactive({
+  refresh_trigger()
+  get_gdx_variable_list(results_dir, filelist, filter_time_dependent=FALSE)
+})
+
+output$select_scenarios <- renderUI({
+  refresh_trigger()
+  create_scenario_selector(scenlist)
+})
+
+output$select_variable <- renderUI({
+  list_of_variables <- list_of_variables_reactive()
+  create_variable_selector(list_of_variables, default_var="Q_EMI", use_picker=TRUE, descriptions=if(exists("all_var_descriptions")) all_var_descriptions else NULL)
+})
+
+output$select_regions <- renderUI({
+  refresh_trigger()
+  create_region_selector(witch_regions, include_aggregates=c("World", "EU"), default_region="World")
+})
+
 variable_input <- reactive({return(input$variable_selected)})
 
 # PERFORMANCE FIX: Move index selectors OUTSIDE renderPlot
 # This prevents them from re-rendering every time the plot updates
 # Only update when variable changes
 set_info_reactive <- reactive({
+  refresh_trigger()
   variable <- variable_input()
-  if(is.null(variable)) variable <- list_of_variables[1]
+  list_of_variables <- list_of_variables_reactive()
+  if(is.null(variable)) variable <- list_of_variables_reactive()[1]
   field_show <- input$field
   afd <- get_witch(variable, , field=field_show)
   extract_additional_sets(afd, file_group_columns)
@@ -39,26 +74,53 @@ output$choose_additional_set <- renderUI({
   }
 
   size_elements <- min(length(set_info$set_elements), 5)
-  selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+  label1 <- if(set_info$additional_set_id != "na") set_info$additional_set_id else "Index 1"
+  if(exists("all_var_descriptions") && label1 %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == label1]
+    if(length(d) > 0 && nchar(d[1]) > 0) label1 <- paste0(label1, " (", d[1], ")")
+  }
+  selectInput(inputId="additional_set_id_selected", label=paste0(label1, ":"), choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
 })
 
 output$choose_additional_set2 <- renderUI({
   set_info <- set_info_reactive()
   sel2 <- input$additional_set_id_selected2
   size_elements2 <- min(length(set_info$set_elements2), 5)
-  selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+  label2 <- if(set_info$additional_set_id2 != "na") set_info$additional_set_id2 else "Index 2"
+  if(exists("all_var_descriptions") && label2 %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == label2]
+    if(length(d) > 0 && nchar(d[1]) > 0) label2 <- paste0(label2, " (", d[1], ")")
+  }
+  selectInput(inputId="additional_set_id_selected2", label=paste0(label2, ":"), choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
 })
 
 output$varname <- renderText({
-  var_text <- paste0("Variable: ", variable_input())
-  if(!is.null(input$additional_set_id_selected) && input$additional_set_id_selected[1] != "na") {
-    var_text <- paste0(var_text, " - Element: ", str_trunc(paste(input$additional_set_id_selected, collapse=","), 20))
+  var <- variable_input()
+  if(is.null(var) || length(var) == 0) return("")
+  desc <- ""
+  if(exists("all_var_descriptions") && var %in% all_var_descriptions$name) {
+    d <- all_var_descriptions$description[all_var_descriptions$name == var]
+    if(length(d) > 0 && nchar(d[1]) > 0) desc <- paste0(" \u2014 ", d[1])
   }
-  if(!is.null(input$additional_set_id_selected2) && input$additional_set_id_selected2[1] != "na") {
-    var_text <- paste0(var_text, " - Element2: ", str_trunc(paste(input$additional_set_id_selected2, collapse=","), 20))
+  var_text <- paste0(var, desc)
+  set_info <- set_info_reactive()
+  # Apply same fallback logic as renderPlot so the title always reflects what is shown
+  eff_sel <- input$additional_set_id_selected
+  if(is.null(eff_sel) || length(eff_sel) == 0 || eff_sel[1] == "na" || !(eff_sel[1] %in% set_info$set_elements)) {
+    eff_sel <- set_info$set_elements[1]
+  }
+  if(set_info$additional_set_id != "na") {
+    var_text <- paste0(var_text, " [", str_trunc(paste(eff_sel, collapse=", "), 20), "]")
+  }
+  if(set_info$additional_set_id2 != "na") {
+    eff_sel2 <- input$additional_set_id_selected2
+    if(is.null(eff_sel2) || length(eff_sel2) == 0 || eff_sel2[1] == "na" || !(eff_sel2[1] %in% set_info$set_elements2)) {
+      eff_sel2 <- set_info$set_elements2[1]
+    }
+    var_text <- paste0(var_text, " [", str_trunc(paste(eff_sel2, collapse=", "), 20), "]")
   }
   if(!is.null(input$regions_selected) && length(input$regions_selected)==1) {
-    var_text <- paste0(var_text, " - Region: ", input$regions_selected[1])
+    var_text <- paste0(var_text, " \u2014 ", input$regions_selected[1])
   }
   var_text
 })
@@ -74,7 +136,7 @@ show_historical <- input$add_historical
 ylim_zero <- input$ylim_zero
 field_show <- input$field
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 set_info <- set_info_reactive()
 yearlim <- input$yearlim
 additional_set_selected <- input$additional_set_id_selected

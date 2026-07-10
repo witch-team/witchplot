@@ -19,3 +19,4 @@ suppressPackageStartupMessages({
   if(requireNamespace("rnaturalearth", quietly=TRUE)) library(rnaturalearth)
   if(requireNamespace("sf", quietly=TRUE)) library(sf)
 })
+source("../data_browser_module.R")  # DATA_BROWSER
