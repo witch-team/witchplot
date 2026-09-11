@@ -9,52 +9,139 @@ run_iiasadb(
   reg_id = c("r5"),
   iamc_filename = NULL,
   iamc_databasename = NULL,
+  restrict_files = "",
+  exclude_files = "",
   add_historical = TRUE,
   deploy_online = FALSE,
   figure_format = "png",
   write_plotdata_csv = FALSE,
   launch = TRUE,
+  run_pyam = NULL,
+  creds = NULL,
+  reglist = "common",
+  varlist = "*",
+  modlist = "*",
+  scenlist = "*",
   ...
 )
 }
 \arguments{
-\item{results_dir}{Path(s) to director(ies) containing IAMC format files. Can be a vector for multiple directories (default: "./")}
+\item{results_dir}{Path(s) to director(ies) containing IAMC format files.
+Can be a vector for multiple directories (default: "./")}
 
-\item{reg_id}{Regional aggregation(s) to display, e.g., c("witch20", "global") (default: c("witch20", "global"))}
+\item{reg_id}{Regional aggregation(s) to display (default: \code{c("r5")})}
 
-\item{iamc_filename}{Specific IAMC file to load (CSV, XLSX, or CSV.ZIP). If NULL, loads all CSV/XLSX files in results_dir (default: NULL)}
+\item{iamc_filename}{Specific IAMC file to load (CSV, XLSX, or CSV.ZIP).
+If NULL, loads all CSV/XLSX files in \code{results_dir} (default: NULL)}
 
-\item{iamc_databasename}{Name of IIASA database to connect to (e.g., "ENGAGE"). Alternative to iamc_filename (default: NULL)}
+\item{iamc_databasename}{Name of IIASA database/platform to connect to
+(e.g., \code{"ar6-public"}, \code{"ENGAGE"}). Alternative to
+\code{iamc_filename} (default: NULL). Old-format instances show a grey
+icon in the IIASA web UI; new ixmp4-format instances show a blue icon.}
 
-\item{add_historical}{Logical, add historical data where available (default: TRUE)}
+\item{restrict_files}{Pattern to restrict which files are loaded
+(default: \code{""} = load all). Only files matching this pattern are
+included.}
+
+\item{exclude_files}{Pattern to exclude files from loading
+(default: \code{""} = exclude none). Files matching this pattern are
+skipped.}
+
+\item{add_historical}{Logical, add historical data where available
+(default: TRUE)}
 
 \item{deploy_online}{Logical, whether to deploy online (default: FALSE)}
 
-\item{figure_format}{Output format for figures (default: "png")}
+\item{figure_format}{Output format for figures: "png", "pdf", "svg"
+(default: "png")}
 
 \item{write_plotdata_csv}{Logical, save plot data as CSV (default: FALSE)}
 
-\item{launch}{Logical, launch Shiny app immediately (default: TRUE)}
+\item{launch}{Logical, launch Shiny app immediately (default: TRUE). Set
+FALSE to load data only (for scripting with \code{get_iiasadb()}).}
+
+\item{run_pyam}{If non-NULL, run a pyam/ixmp4 API query instead of
+launching the Shiny app. Requires \code{reticulate} and a working Python
+environment with \code{pyam} installed (\code{pip install pyam-iamc}).
+Supported values: \cr
+\emph{Old-format instances (grey icon in IIASA web UI):} \cr
+\itemize{
+  \item \code{"list_platforms"} - list all available IIASA platforms
+    (via \code{pyam.iiasa.platforms()}, no database needed)
+  \item \code{"valid_connections"} - list platforms accessible with your
+    credentials (no database needed; old-format only)
+  \item \code{"list_models"} - list all models in \code{iamc_databasename}
+    (via \code{pyam.iiasa.Connection(db).models()})
+  \item \code{"list_scenarios"} - list all scenarios in the database
+    (via \code{Connection(db).scenarios()})
+  \item \code{"list_variables"} - list all variables in the database
+    (via \code{Connection(db).variables()})
+  \item \code{"list_regions"} - list all regions in the database
+    (via \code{Connection(db).regions()})
+  \item \code{"meta"} - get model/scenario metadata as a data frame
+    (via \code{Connection(db).meta()})
+  \item \code{"meta_columns"} - list available metadata columns
+    (via \code{Connection(db).meta_columns})
+  \item \code{"index"} - get model-scenario index as a data frame
+    (via \code{Connection(db).index()})
+}
+\emph{New ixmp4-format instances (blue icon in IIASA web UI):} \cr
+\itemize{
+  \item \code{"ixmp4_list_runs"} - list all model/scenario runs
+    (via \code{ixmp4.Platform(db).runs.tabulate()})
+  \item \code{"ixmp4_variables"} - list all variables
+    (via \code{Platform(db).iamc.variables.tabulate()})
+  \item \code{"ixmp4_regions"} - list all regions
+    (via \code{Platform(db).regions.tabulate()})
+  \item \code{"ixmp4_units"} - list all units
+    (via \code{Platform(db).units.tabulate()})
+}}
+
+\item{creds}{Optional credentials for private IIASA databases. Pass as a
+named list: \code{list(username="user@email.com", password="secret")}.
+For persistent login use \code{iiasa_login()} instead.}
+
+\item{reglist}{Regions to download when using \code{iamc_databasename}.
+Default \code{"common"} automatically resolves to aggregate regions
+(R5, R10, World, etc.) via the ixmp4 API. Pass a character vector for
+custom region lists, or \code{"World"} for global totals only.}
+
+\item{varlist}{Variables to download when using \code{iamc_databasename}.
+Default \code{"*"} downloads all variables. Pass a character vector to
+restrict (e.g., \code{c("Emissions|CO2", "GDP|PPP")}).}
+
+\item{modlist}{Models to download when using \code{iamc_databasename}.
+Default \code{"*"} downloads all models.}
+
+\item{scenlist}{Scenarios to download when using \code{iamc_databasename}.
+Default \code{"*"} downloads all scenarios. Pass a character vector to
+restrict (e.g., \code{c("SSP2-Baseline", "SSP2-1p5C")}). Use
+\code{run_iiasadb(run_pyam="list_scenarios")} first to see available names.}
 
 \item{...}{Additional options passed to session configuration}
 
-\item{year0}{Base year for the model (default: 2005)}
-
-\item{tstep}{Time step in years (default: 5)}
-
-\item{map_var_hist}{Data frame mapping IAMC variables to historical data sources. If NULL, uses default mapping.}
+\item{map_var_hist}{Data frame mapping IAMC variables to historical data
+sources. If NULL, uses default mapping from
+\code{inst/config/map_var_hist_iiasadb.csv}.}
 }
 \value{
-Invisibly returns NULL. Launches Shiny application if launch=TRUE.
+Invisibly returns NULL. Launches Shiny application if
+  \code{launch=TRUE}. If \code{run_pyam} is set, returns the query result
+  invisibly and does not launch the app.
 }
 \description{
-Loads IAM scenario data in IAMC format (CSV/XLSX files or IIASA database connection)
-and launches an interactive Shiny application for comparing scenarios.
+Loads IAM scenario data in IAMC format (CSV/XLSX files or IIASA database
+connection) and launches an interactive Shiny application for comparing
+scenarios. This function provides a simple R interface to the
+\href{https://pyam-iamc.readthedocs.io/}{pyam} Python library (via
+\code{reticulate}), which is the standard toolkit for working with IAMC
+scenario data.
 }
 \details{
-By default (iamc_filename=NULL), automatically discovers and loads all CSV and XLSX files
-in the results_dir. Files are combined into a single dataset for comparison.
-Supports multiple directories - pass as a vector to load and compare across directories.
+By default (\code{iamc_filename=NULL}), automatically discovers and loads all
+CSV and XLSX files in the \code{results_dir}. Files are combined into a
+single dataset for comparison. Supports multiple directories - pass as a
+vector to load and compare across directories.
 }
 \examples{
 \dontrun{
@@ -70,8 +157,61 @@ Supports multiple directories - pass as a vector to load and compare across dire
   # Compare across multiple directories
   run_iiasadb(results_dir = c("results_v1", "results_v2"))
 
-  # Connect to IIASA database
+  # Connect to IIASA database (ixmp4 / blue-icon platform)
   run_iiasadb(iamc_databasename = "ENGAGE")
+
+  # Load only files matching a pattern
+  run_iiasadb(restrict_files = "SPARCCLE")
+
+  # Exclude files matching a pattern
+  run_iiasadb(exclude_files = "template")
+
+  # List all available IIASA platforms (no database needed)
+  run_iiasadb(run_pyam = "list_platforms")
+
+  # List platforms accessible with your credentials (old-format only)
+  run_iiasadb(run_pyam = "valid_connections")
+
+  # List models in a database
+  run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_models")
+
+  # List variables available in a database
+  run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_variables")
+
+  # List regions in a database
+  run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_regions")
+
+  # Get model/scenario metadata
+  meta <- run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "meta")
+
+  # Get model-scenario index
+  idx <- run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "index")
+
+  # Query an ixmp4-format (blue icon) platform
+  run_iiasadb(iamc_databasename = "ENGAGE", run_pyam = "ixmp4_list_runs")
+  run_iiasadb(iamc_databasename = "ENGAGE", run_pyam = "ixmp4_variables")
+
+  # Login to access private databases
+  iiasa_login("your@email.com")
+  run_iiasadb(iamc_databasename = "private-db")
+
+  # Or pass credentials directly
+  run_iiasadb(
+    iamc_databasename = "private-db",
+    creds = list(username = "user@email.com", password = "secret")
+  )
+
+  # Download only specific variables, regions and scenarios
+  run_iiasadb(
+    iamc_databasename = "ar6-public",
+    varlist  = c("Emissions|CO2", "GDP|PPP", "Population"),
+    reglist  = c("World", "R5ASIA", "R5LAM"),
+    scenlist = c("SSP2-Baseline", "SSP2-1p5C")
+  )
+
+  # List available scenarios first, then download a subset
+  run_iiasadb(iamc_databasename = "ar6-public", run_pyam = "list_scenarios")
+  run_iiasadb(iamc_databasename = "ar6-public", scenlist = c("SSP2-Baseline"))
 }
 
 }
