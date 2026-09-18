@@ -1,14 +1,45 @@
 shinyServer(function(input, output, session) {
+# Re-initialize on session start to pick up new files (supports F5)
+.initialize_witchplot_session()
+
+# Reactive trigger for file refresh
+refresh_trigger <- reactiveVal(0)
+
+# Observe refresh button
+observeEvent(input$refresh_files, {
+  withProgress(message = 'Refreshing GDX files...', value = 0, {
+    .initialize_witchplot_session()
+    refresh_trigger(refresh_trigger() + 1)
+  })
+})
+
 verbose <- FALSE
 growth_rate <- FALSE
-list_of_variables <- get_gdx_variable_list_simple(results_dir, filelist)
-list_of_variables <- str_subset(list_of_variables, pattern="_t$")
-output$select_scenarios <- renderUI({selectInput("scenarios_selected", "Select scenarios", unname(scenlist), size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=unname(scenlist))})
+
+# Make list of variables reactive so it updates on refresh
+list_of_variables_reactive <- reactive({
+  refresh_trigger()
+  vars <- get_gdx_variable_list_simple(results_dir, filelist)
+  str_subset(vars, pattern="_t$")
+})
+
+output$select_scenarios <- renderUI({
+  refresh_trigger()
+  selectInput("scenarios_selected", "Select scenarios", unname(scenlist), size=length(scenlist), selectize=FALSE, multiple=TRUE, selected=unname(scenlist))
+})
+
 output$select_variable <- renderUI({
+  list_of_variables <- list_of_variables_reactive()
   default_var <- if("GDPr_t" %in% list_of_variables) "GDPr_t" else list_of_variables[1]
   selectInput("variable_selected", "Select variable", list_of_variables, size=1, selectize=FALSE, multiple=FALSE, selected=default_var)
 })
-output$select_regions <- renderUI({regions_for_selector <- c(witch_regions, "World"); selectInput("regions_selected", "Select regions", regions_for_selector, size=min(17, length(regions_for_selector)), selectize=FALSE, multiple=TRUE, selected=witch_regions)})
+
+output$select_regions <- renderUI({
+  refresh_trigger()
+  regions_for_selector <- c(witch_regions, "World")
+  selectInput("regions_selected", "Select regions", regions_for_selector, size=min(17, length(regions_for_selector)), selectize=FALSE, multiple=TRUE, selected=witch_regions)
+})
+
 variable_selected_reactive <- reactive({input$variable_selected})
 variable_input <- reactive({return(input$variable_selected)})
 output$varname <- renderText({
@@ -42,7 +73,7 @@ ylim_zero <- input$ylim_zero
 field_show <- input$field
 growth_rate <- input$growth_rate
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, , field=field_show)
 if(verbose) print(str_glue("Variable {variable} loaded."))
 
@@ -54,7 +85,7 @@ if(!has_time) {
   set_info <- extract_additional_sets(afd, file_group_columns)
   output$choose_additional_set <- renderUI({
     variable <- variable_input()
-    if(is.null(variable)) variable <- list_of_variables[1]
+    if(is.null(variable)) variable <- list_of_variables_reactive()[1]
     sel <- input$additional_set_id_selected
     if(is.null(sel)){
       if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
@@ -64,12 +95,11 @@ if(!has_time) {
   })
   output$choose_additional_set2 <- renderUI({
     variable <- variable_input()
-    if(is.null(variable)) variable <- list_of_variables[1]
+    if(is.null(variable)) variable <- list_of_variables_reactive()[1]
     sel2 <- input$additional_set_id_selected2
     size_elements2 <- min(length(set_info$set_elements2), 5)
     selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
   })
-
   filtered_data <- afd
   # Order pathdir factor according to results_dir vector
   if("pathdir" %in% names(filtered_data) && length(results_dir) > 1) {
@@ -80,7 +110,6 @@ if(!has_time) {
   additional_set_selected2 <- input$additional_set_id_selected2
   regions <- input$regions_selected
   scenarios <- input$scenarios_selected
-
   if(is.null(additional_set_selected)) additional_set_selected <- set_info$set_elements[1]
   if(set_info$additional_set_id != "na") {
     filtered_data[[set_info$additional_set_id]] <- tolower(filtered_data[[set_info$additional_set_id]])
@@ -101,21 +130,21 @@ if(!has_time) {
   # Show plot as usual
   set_info <- extract_additional_sets(afd, file_group_columns)
   output$choose_additional_set <- renderUI({
-  variable <- variable_input()
-  if(is.null(variable)) variable <- list_of_variables[1]
-  sel <- input$additional_set_id_selected
-  if(is.null(sel)){
-  if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
-  }
-  size_elements <- min(length(set_info$set_elements), 5)
-  selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
+    variable <- variable_input()
+    if(is.null(variable)) variable <- list_of_variables_reactive()[1]
+    sel <- input$additional_set_id_selected
+    if(is.null(sel)){
+      if("co2_ffi" %in% set_info$set_elements) sel <- "co2_ffi" else sel <- set_info$set_elements[1]
+    }
+    size_elements <- min(length(set_info$set_elements), 5)
+    selectInput(inputId="additional_set_id_selected", label="Index 1:", choices=set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
   })
   output$choose_additional_set2 <- renderUI({
-  variable <- variable_input()
-  if(is.null(variable)) variable <- list_of_variables[1]
-  sel2 <- input$additional_set_id_selected2
-  size_elements2 <- min(length(set_info$set_elements2), 5)
-  selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
+    variable <- variable_input()
+    if(is.null(variable)) variable <- list_of_variables_reactive()[1]
+    sel2 <- input$additional_set_id_selected2
+    size_elements2 <- min(length(set_info$set_elements2), 5)
+    selectInput(inputId="additional_set_id_selected2", label="Index 2:", choices=set_info$set_elements2, size=size_elements2, selectize=FALSE, multiple=TRUE, selected=sel2)
   })
   yearlim <- input$yearlim
   additional_set_selected <- input$additional_set_id_selected
@@ -128,23 +157,23 @@ if(!has_time) {
   afd <- plot_data$data
   unit_conv <- plot_data$unit_conv
   if(growth_rate){
-  unit_conv$unit <- " % p.a."
-  unit_conv$convert <- 1
+    unit_conv$unit <- " % p.a."
+    unit_conv$convert <- 1
   }
   afd$n <- ifelse(afd$n=="World", "World", toupper(afd$n))
   if(regions[1]=="World" | length(regions)==1){
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
-  if(ylim_zero) p <- p + ylim(0, NA)
-  if(show_historical) {
-    p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
-  }
-  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
+    p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + xlim(yearlim[1], yearlim[2])
+    if(ylim_zero) p <- p + ylim(0, NA)
+    if(show_historical) {
+      p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=file), stat="identity", linewidth=1.0, linetype="solid")
+    }
+    p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL))
   }else{
-  p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
-  if(show_historical) {
-    p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
-  }
-  p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow=2), linetype=guide_legend(title=NULL))
+    p <- ggplot(subset(afd, n %in% regions & !str_detect(file, "historical") & !str_detect(file, "valid")), aes(year, value, colour=n, linetype=file)) + geom_line(stat="identity", linewidth=1.5) + xlab("year") + ylab(unit_conv$unit) + scale_colour_manual(values=region_palette) + xlim(yearlim[1], yearlim[2])
+    if(show_historical) {
+      p <- p + geom_line(data=subset(afd, n %in% regions & str_detect(file, "historical")), aes(year, value, colour=n, group=interaction(n, file)), linetype="solid", stat="identity", linewidth=1.0)
+    }
+    p <- p + theme(text=element_text(size=16), legend.position="bottom", legend.direction="horizontal", legend.box="vertical", legend.key=element_rect(colour=NA), legend.title=element_blank()) + guides(color=guide_legend(title=NULL, nrow=2), linetype=guide_legend(title=NULL))
   }
   if(length(results_dir)!=1) p <- p + facet_grid(. ~ pathdir)
   if(nrow(afd)>0) {
@@ -156,13 +185,13 @@ output$gdxcompaRstackedplot <- renderPlot({
 show_historical <- input$add_historical  # Checkbox controls plot visibility
 ylim_zero <- input$ylim_zero
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 afd <- get_witch(variable, )
 if(verbose) print(str_glue("Variable {variable} loaded."))
 set_info <- extract_additional_sets(afd, file_group_columns)
 output$choose_additional_set <- renderUI({
 variable <- variable_selected_reactive()
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 sel <- input$additional_set_id_selected
 size_elements <- min(length(set_info$set_elements), 5)
 selectInput("additional_set_id_selected", "Index 1:", set_info$set_elements, size=size_elements, selectize=FALSE, multiple=TRUE, selected=sel)
@@ -216,7 +245,7 @@ growth_rate <- input$growth_rate
 field_show <- input$field
 plotly_dynamic <- input$plotly_dynamic
 variable <- input$variable_selected
-if(is.null(variable)) variable <- list_of_variables[1]
+if(is.null(variable)) variable <- list_of_variables_reactive()[1]
 plot_data <- prepare_plot_data(variable, field_show, input$yearlim, input$scenarios_selected, "na", "na", NULL, NULL, input$regions_selected, growth_rate, time_filter=TRUE, compute_aggregates=TRUE, verbose=verbose)
 afd <- plot_data$data
 unit_conv <- plot_data$unit_conv

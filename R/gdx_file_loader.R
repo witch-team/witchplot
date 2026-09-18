@@ -118,7 +118,8 @@
   mygdx <- gdxtools::gdx(file.path(results_dir[1], paste0(filelist[1], ".gdx")))
   all_var_descriptions <- rbind(
     data.frame(name = mygdx$variables$name, description = mygdx$variables$text),
-    data.frame(name = mygdx$parameters$name, description = mygdx$parameters$text)
+    data.frame(name = mygdx$parameters$name, description = mygdx$parameters$text),
+    data.frame(name = mygdx$sets$name, description = mygdx$sets$text)
   )
   assign("all_var_descriptions", all_var_descriptions, envir=.GlobalEnv)
 
@@ -173,6 +174,21 @@
       witch_regions <- "World"
     })
   }
+
+  # Try to read region long names from data_{reg_id}/n.inc element text
+  # (gdxtools does not expose set element text from GDX files)
+  tryCatch({
+    n_inc_path <- file.path(results_dir[1], paste0("data_", reg_id), "n.inc")
+    if(file.exists(n_inc_path)) {
+      lines   <- readLines(n_inc_path, warn=FALSE)
+      matches <- regmatches(lines, regexec("^\\s*(\\w+)\\s+'(.+)'", lines))
+      valid   <- Filter(function(x) length(x) == 3, matches)
+      if(length(valid) > 0) {
+        name_map <- setNames(sapply(valid, `[`, 3), sapply(valid, `[`, 2))
+        assign("rice_region_names", name_map, envir=.GlobalEnv)
+      }
+    }
+  }, error = function(e) NULL)
 
   # Apply nice region names if they exist
   if(exists("nice_region_names", envir=.GlobalEnv)) {

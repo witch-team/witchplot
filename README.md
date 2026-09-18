@@ -61,15 +61,22 @@ library(witchplot)
 run_witch() # Uses defaults: results_dir="./"
 
   
-
 # Or specify custom paths:
-
 run_witch(
 results_dir=c("results", "results_v2"),
 )
 
-```
 
+# To run the development version use
+devtools::load_all("path/to/witchplot")
+run_witch()
+
+# or for RICE: 
+devtools::load_all("path/to/witchplot")
+run_rice()
+
+
+```
   
 
 ### RICE50+ Model
