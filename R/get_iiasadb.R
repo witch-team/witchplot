@@ -71,7 +71,7 @@
                any(sapply(config_paths, function(p) file.exists(file.path(p, "credentials.toml"))))
   if (!has_login) {
     message("No stored IIASA credentials found. Public databases are accessible without login.\n",
-            "For private databases, use iiasa_login('username') or pass creds= argument.")
+            "For private databases, run iiasa_login('username') once to store credentials.")
   }
   invisible(has_login)
 }
@@ -95,7 +95,7 @@
 #   "ixmp4_variables"     - Platform(db).iamc.variables.tabulate()
 #   "ixmp4_regions"       - Platform(db).regions.tabulate()
 #   "ixmp4_units"         - Platform(db).units.tabulate()
-.run_pyam_iiasa <- function(pyam, database=NULL, operation, creds=NULL) {
+.run_pyam_iiasa <- function(pyam, database=NULL, operation) {
   require(reticulate)
   needs_db <- !operation %in% c("list_platforms", "valid_connections")
   if (needs_db && is.null(database)) {
@@ -107,10 +107,9 @@
     ixmp4 <- import("ixmp4", convert=FALSE)
     ixmp4$Platform(database)
   }
-  # Helper to create Connection, passing creds if provided
+  # Helper to create Connection (credentials loaded automatically from stored token)
   .conn <- function() {
-    if (!is.null(creds)) pyam$iiasa$Connection(database, creds=creds)
-    else pyam$iiasa$Connection(database)
+    pyam$iiasa$Connection(database)
   }
   switch(operation,
     "list_platforms" = {
@@ -235,11 +234,11 @@
 #'   meta <- pyam_iiasa("meta", database = "ar6-public")
 #' }
 #' @export
-pyam_iiasa <- function(operation, database=NULL, creds=NULL) {
+pyam_iiasa <- function(operation, database=NULL) {
   require(reticulate)
   pyam <- import("pyam", convert=FALSE)
   .check_ixmp4_auth()
-  .run_pyam_iiasa(pyam, database, operation, creds=creds)
+  .run_pyam_iiasa(pyam, database, operation)
 }
 
 #' Login to IIASA database from R
@@ -256,17 +255,16 @@ iiasa_login <- function(username, password=NULL) {
   if (is.null(password)) {
     password <- readline(prompt=paste0("IIASA password for '", username, "': "))
   }
-  # ixmp4 >= 0.15 API: Credentials(toml_file).set(url, user, pass) + .dump()
-  # Credentials are stored in ~/.local/share/ixmp4/credentials.toml
-  # On Windows, R's ~ → Documents; use USERPROFILE for the real home dir.
+  # Use platformdirs to find the correct platform-specific ixmp4 config path.
+  # On Windows this is %LOCALAPPDATA%\ixmp4\ixmp4\, on Linux ~/.local/share/ixmp4/.
   tryCatch({
     ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
+    platdirs <- reticulate::import("platformdirs", convert=FALSE)
+    cred_dir <- as.character(platdirs$user_data_dir("ixmp4", "ixmp4"))
+    cred_path_str <- file.path(cred_dir, "credentials.toml")
+    dir.create(cred_dir, recursive=TRUE, showWarnings=FALSE)
     pathlib <- reticulate::import("pathlib", convert=FALSE)
-    userprofile <- Sys.getenv("USERPROFILE")
-    home_dir <- if (nchar(userprofile) > 0) userprofile else path.expand("~")
-    cred_path_str <- file.path(home_dir, ".local", "share", "ixmp4", "credentials.toml")
     cred_path <- pathlib$Path(cred_path_str)
-    dir.create(dirname(cred_path_str), recursive=TRUE, showWarnings=FALSE)
     Credentials <- ixmp4$conf$credentials$Credentials
     creds_inst <- Credentials(toml_file=cred_path)
     manager_url <- "https://api.manager.ece.iiasa.ac.at/v1"
@@ -274,22 +272,20 @@ iiasa_login <- function(username, password=NULL) {
     creds_inst$dump()
     message("Credentials saved for '", username, "'.")
     message("  File: ", cred_path_str)
-    message("You can now call run_iiasadb() without passing creds=.")
+    message("You can now call run_iiasadb() without any credentials argument.")
     return(invisible(NULL))
   }, error = function(e) {
     message("Automatic login failed: ", conditionMessage(e), "\n",
             "Please run once in a terminal:\n",
             "  ixmp4 login ", username, "\n",
             "Or:  python -m ixmp4 login ", username, "\n",
-            "After that, witchplot will work without needing creds=.\n",
-            "Workaround for this session: pass creds=list(username='", username,
-            "', password='...') to run_iiasadb().")
+            "After that, witchplot will work without any credentials argument.")
   })
   invisible(NULL)
 }
 
 #Function to download data from IIASA database
-download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname=NULL, modlist="*", scenlist="*", reglist="World", show_variables=FALSE, add_metadata=TRUE, run_pyam=NULL, creds=NULL, autosave_path=NULL) {
+download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname=NULL, modlist="*", scenlist="*", reglist="World", show_variables=FALSE, add_metadata=TRUE, run_pyam=NULL, autosave_path=NULL) {
   require(reticulate)
   pyam <- .ensure_pyam()
 
@@ -297,7 +293,7 @@ download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname
 
   # Handle run_pyam operations - early return without downloading data
   if (!is.null(run_pyam)) {
-    return(.run_pyam_iiasa(pyam, database, run_pyam, creds=creds))
+    return(.run_pyam_iiasa(pyam, database, run_pyam))
   }
 
   # Detect database type: try ixmp4.Platform first (blue-icon / ixmp4-format databases).
@@ -319,7 +315,7 @@ download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname
       print(result)
       assign("iiasadb_variables_available", result, envir=.GlobalEnv)
     } else {
-      conn <- if (!is.null(creds)) pyam$iiasa$Connection(database, creds=creds) else pyam$iiasa$Connection(database)
+      conn <- pyam$iiasa$Connection(database)
       result <- py_to_r(conn$variables())
       print(result)
       assign("iiasadb_variables_available", as.data.frame(result), envir=.GlobalEnv)
@@ -332,7 +328,6 @@ download_iiasadb <- function(database="iamc15", varlist="Emissions|CO2", varname
       pyam$read_ixmp4(platform, model=mod, scenario=scenlist, variable=varlist, region=reg)
     } else {
       args <- list(database, model=mod, scenario=scenlist, variable=varlist, region=reg, meta=TRUE)
-      if (!is.null(creds)) args$creds <- creds
       do.call(pyam$read_iiasa, args)
     }
   }

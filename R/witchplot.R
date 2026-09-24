@@ -328,6 +328,23 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #' single dataset for comparison. Supports multiple directories - pass as a
 #' vector to load and compare across directories.
 #'
+#' @section Authentication:
+#' Public IIASA databases (e.g., \code{"ar6-public"}) work without any login.
+#' Private databases require authentication. There are two equivalent ways to
+#' authenticate, both need to be done only once:
+#' \enumerate{
+#'   \item \strong{Login from R (recommended):} Run once in R:
+#'     \preformatted{iiasa_login("your@email.com")}
+#'     You will be prompted for your password. Credentials are stored in
+#'     ixmp4's platform-specific config directory and reused automatically
+#'     in all future sessions without any further action.
+#'   \item \strong{Login from terminal (equivalent):} Run once in a
+#'     system terminal:
+#'     \preformatted{ixmp4 login your@email.com}
+#'     or \code{python -m ixmp4 login your@email.com}.
+#'     Produces the same stored token as option 1.
+#' }
+#'
 #' @param results_dir Path(s) to director(ies) containing IAMC format files.
 #'   Can be a vector for multiple directories (default: "./")
 #' @param reg_id Regional aggregation(s) to display (default: \code{c("r5")})
@@ -390,9 +407,6 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #'     \item \code{"ixmp4_units"} - list all units
 #'       (via \code{Platform(db).units.tabulate()})
 #'   }
-#' @param creds Optional credentials for private IIASA databases. Pass as a
-#'   named list: \code{list(username="user@email.com", password="secret")}.
-#'   For persistent login use \code{iiasa_login()} instead.
 #' @param reglist Regions to download when using \code{iamc_databasename}.
 #'   Default \code{"common"} automatically resolves to aggregate regions
 #'   (R5, R10, World, etc.) via the ixmp4 API. Pass a character vector for
@@ -464,12 +478,6 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 #'   iiasa_login("your@email.com")
 #'   run_iiasadb(iamc_databasename = "private-db")
 #'
-#'   # Or pass credentials directly
-#'   run_iiasadb(
-#'     iamc_databasename = "private-db",
-#'     creds = list(username = "user@email.com", password = "secret")
-#'   )
-#'
 #'   # Download only specific variables, regions and scenarios
 #'   run_iiasadb(
 #'     iamc_databasename = "ar6-public",
@@ -487,7 +495,7 @@ if(launch) shiny::runApp(appDir=system.file("gdxcompaR", "fidelio", package="wit
 run_iiasadb <- function(results_dir="./", reg_id=c("r5"), iamc_filename=NULL, iamc_databasename=NULL,
                         restrict_files="", exclude_files="",
                         add_historical=TRUE, deploy_online=FALSE, figure_format="png", write_plotdata_csv=FALSE,
-                        launch=TRUE, run_pyam=NULL, creds=NULL, reglist="common", varlist="*", modlist="*", scenlist="*", ...) {
+                        launch=TRUE, run_pyam=NULL, reglist="common", varlist="*", modlist="*", scenlist="*", ...) {
 # Handle run_pyam operations: query the IIASA database without loading data
 # or launching Shiny. Delegates to pyam_iiasa() via .run_pyam_iiasa().
 # Supported values: "list_platforms", "list_models", "list_scenarios",
@@ -495,7 +503,7 @@ run_iiasadb <- function(results_dir="./", reg_id=c("r5"), iamc_filename=NULL, ia
 if (!is.null(run_pyam)) {
   pyam <- .ensure_pyam()
   .check_ixmp4_auth()
-  return(invisible(.run_pyam_iiasa(pyam, iamc_databasename, run_pyam, creds=creds)))
+  return(invisible(.run_pyam_iiasa(pyam, iamc_databasename, run_pyam)))
 }
 # Clean up any global variables from previous sessions
 .cleanup_witchplot_globals()
@@ -567,15 +575,6 @@ if(input==1) {
 }
 }
 if(load_from_db) {
-  # Authenticate via creds= early so both region resolution and download can access the db.
-  # Newer ixmp4 requires manager.login() (OAuth2 JWT) not credentials.set(user, pass).
-  if (!is.null(creds) && !is.null(creds$username) && !is.null(creds$password)) {
-    tryCatch({
-      ixmp4_tmp <- reticulate::import("ixmp4", convert=FALSE)
-      ixmp4_tmp$conf$settings$manager$login(creds$username, creds$password)
-    }, error = function(e) NULL)
-  }
-
   # Resolve reglist: expand hierarchy names to their member regions.
   # "common"            → regions in common/R5/R9/R10/Regional Organizations + key countries
   # Any hierarchy name  → all regions belonging to that hierarchy (e.g. "R10", "R5")
@@ -617,8 +616,7 @@ if(load_from_db) {
     if (!resolved && has_common) {
       tryCatch({
         pyam_tmp <- .ensure_pyam()
-        conn <- if (!is.null(creds)) pyam_tmp$iiasa$Connection(iamc_databasename, creds=creds)
-                else pyam_tmp$iiasa$Connection(iamc_databasename)
+        conn <- pyam_tmp$iiasa$Connection(iamc_databasename)
         all_regions <- as.character(reticulate::py_to_r(conn$regions()))
         agg_pattern <- "^World$|^R5|^R10|^R9|OECD|LAM|ASIA|MAF|REF|\\bEU\\b|^Global$"
         common_regs <- all_regions[grepl(agg_pattern, all_regions, ignore.case=TRUE)]
@@ -639,15 +637,13 @@ if(load_from_db) {
   message("Fetching data from IIASA database: ", iamc_databasename)
   partial_path <- file.path(results_dir[1], "iiasadb_partial.Rdata")
   iiasadb_data <- tryCatch(
-    download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist=scenlist, add_metadata=FALSE, autosave_path=partial_path, creds=creds),
+    download_iiasadb(database=iamc_databasename, varlist=varlist, reglist=reglist, modlist=modlist, scenlist=scenlist, add_metadata=FALSE, autosave_path=partial_path),
     error = function(e) {
       msg <- conditionMessage(e)
       if (grepl("401|403|Unauthorized|forbidden|authentication|credentials|permission|access.denied|login|insufficient.permissions|denied", msg, ignore.case=TRUE)) {
         stop("Access denied to '", iamc_databasename, "'.\n",
              "This database requires authentication. Store credentials once with:\n",
              "  iiasa_login('your@email.com')\n",
-             "Or pass directly: run_iiasadb(iamc_databasename='", iamc_databasename,
-             "', creds=list(username='...', password='...'))\n",
              "Original error: ", msg, call.=FALSE)
       }
       stop(msg, call.=FALSE)

@@ -17,7 +17,6 @@ run_iiasadb(
   write_plotdata_csv = FALSE,
   launch = TRUE,
   run_pyam = NULL,
-  creds = NULL,
   reglist = "common",
   varlist = "*",
   modlist = "*",
@@ -97,10 +96,6 @@ Supported values: \cr
     (via \code{Platform(db).units.tabulate()})
 }}
 
-\item{creds}{Optional credentials for private IIASA databases. Pass as a
-named list: \code{list(username="user@email.com", password="secret")}.
-For persistent login use \code{iiasa_login()} instead.}
-
 \item{reglist}{Regions to download when using \code{iamc_databasename}.
 Default \code{"common"} automatically resolves to aggregate regions
 (R5, R10, World, etc.) via the ixmp4 API. Pass a character vector for
@@ -143,6 +138,25 @@ CSV and XLSX files in the \code{results_dir}. Files are combined into a
 single dataset for comparison. Supports multiple directories - pass as a
 vector to load and compare across directories.
 }
+\section{Authentication}{
+
+Public IIASA databases (e.g., \code{"ar6-public"}) work without any login.
+Private databases require authentication. There are two equivalent ways to
+authenticate, both need to be done only once:
+\enumerate{
+  \item \strong{Login from R (recommended):} Run once in R:
+    \preformatted{iiasa_login("your@email.com")}
+    You will be prompted for your password. Credentials are stored in
+    ixmp4's platform-specific config directory and reused automatically
+    in all future sessions without any further action.
+  \item \strong{Login from terminal (equivalent):} Run once in a
+    system terminal:
+    \preformatted{ixmp4 login your@email.com}
+    or \code{python -m ixmp4 login your@email.com}.
+    Produces the same stored token as option 1.
+}
+}
+
 \examples{
 \dontrun{
   # Auto-load all CSV/XLSX files in current directory
@@ -194,12 +208,6 @@ vector to load and compare across directories.
   # Login to access private databases
   iiasa_login("your@email.com")
   run_iiasadb(iamc_databasename = "private-db")
-
-  # Or pass credentials directly
-  run_iiasadb(
-    iamc_databasename = "private-db",
-    creds = list(username = "user@email.com", password = "secret")
-  )
 
   # Download only specific variables, regions and scenarios
   run_iiasadb(
