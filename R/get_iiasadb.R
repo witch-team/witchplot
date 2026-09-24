@@ -272,21 +272,17 @@ iiasa_login <- function(username, password=NULL) {
   }
   # Ensure reticulate uses the same Python environment as run_iiasadb() (installs ixmp4 if needed)
   tryCatch(.ensure_pyam(), error = function(e) NULL)
-  # Use platformdirs to find the correct platform-specific ixmp4 config path.
-  # On Windows this is %LOCALAPPDATA%\ixmp4\ixmp4\, on Linux ~/.local/share/ixmp4/.
+  # Use ixmp4's own settings to find/create the credentials file.
+  # ixmp4 stores credentials in ~/.local/share/ixmp4/credentials.toml (all platforms).
+  # settings.get_credentials() touches the file first, so no FileNotFoundError.
   tryCatch({
     ixmp4 <- reticulate::import("ixmp4", convert=FALSE)
-    platdirs <- reticulate::import("platformdirs", convert=FALSE)
-    cred_dir <- as.character(platdirs$user_data_dir("ixmp4", "ixmp4"))
-    cred_path_str <- file.path(cred_dir, "credentials.toml")
-    dir.create(cred_dir, recursive=TRUE, showWarnings=FALSE)
-    pathlib <- reticulate::import("pathlib", convert=FALSE)
-    cred_path <- pathlib$Path(cred_path_str)
-    Credentials <- ixmp4$conf$credentials$Credentials
-    creds_inst <- Credentials(toml_file=cred_path)
+    settings <- ixmp4$conf$settings
+    creds_inst <- settings$get_credentials()
+    cred_path_str <- as.character(settings$get_credentials_path())
     manager_url <- "https://api.manager.ece.iiasa.ac.at/v1"
     creds_inst$set(manager_url, username, password)
-    creds_inst$dump()
+    creds_inst$set("default", username, password)
     message("Credentials saved for '", username, "'.")
     message("  File: ", cred_path_str)
     message("You can now call run_iiasadb() without any credentials argument.")

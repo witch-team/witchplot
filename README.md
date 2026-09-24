@@ -8,21 +8,17 @@ Interactive Visualization Toolkit for GAMS IAM Model Results (WITCH, RICE, DICE,
 
   
 
-Install directly from GitHub using devtools:
+Install directly from GitHub using `pak`:
 
-  
+
 
 ```r
 
-# Install devtools if not already installed
-
-if (!require("devtools")) install.packages("devtools")
-
-  
+# Install pak if not already installed
+if (!require("pak")) install.packages("pak")
 
 # Install witchplot from GitHub
-
-devtools::install_github("witch-team/witchplot")
+pak::pak("witch-team/witchplot")
 
   
 

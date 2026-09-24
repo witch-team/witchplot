@@ -33,7 +33,7 @@ witchmap <- function(variable_report, file_report=scenlist[1], t_report=20, scal
 
   # Get region mapping from witchtools
   if(!requireNamespace("witchtools", quietly = TRUE)){
-    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: remotes::install_github('witch-team/witchtools')")
+    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: pak::pak('witch-team/witchtools')")
     return(invisible(NULL))
   }
 
@@ -198,7 +198,7 @@ map_simple <- function(data, yearmap=2100, title="", scenplot=scenlist, legend_t
 
   # Get region mapping from witchtools
   if(!requireNamespace("witchtools", quietly = TRUE)){
-    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: remotes::install_github('witch-team/witchtools')")
+    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: pak::pak('witch-team/witchtools')")
     return(invisible(NULL))
   }
 
@@ -235,7 +235,7 @@ plot_map_region_definition <- function(regional_focus="World") {
 
   # Get region mapping from witchtools
   if(!requireNamespace("witchtools", quietly = TRUE)){
-    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: remotes::install_github('witch-team/witchtools')")
+    warning("Cannot create map: witchtools package is not available. Please install it from GitHub: pak::pak('witch-team/witchtools')")
     return(invisible(NULL))
   }
 

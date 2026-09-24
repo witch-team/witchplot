@@ -32,7 +32,7 @@ setup_gdx <- function(gams_path = NULL) {
   # Check if gdxtools is installed
   if (!requireNamespace("gdxtools", quietly = TRUE)) {
     message("✗ gdxtools package is not installed!")
-    message("  Install it with: install.packages('gdxtools') or devtools::install_github('lolow/gdxtools')")
+    message("  Install it with: pak::pak('lolow/gdxtools')")
     return(FALSE)
   }
 
