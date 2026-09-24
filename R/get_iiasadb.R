@@ -22,12 +22,13 @@
     "import warnings\nwarnings.filterwarnings('ignore', message='urllib3', category=Warning)\nwarnings.filterwarnings('ignore', category=FutureWarning, module='pyam')"
   ), error = function(e) NULL)
 
+  has_py_require <- exists("py_require", envir = asNamespace("reticulate"),
+                           mode = "function", inherits = FALSE)
+
   if (is.null(pyam)) {
     message("Python package 'pyam' not found. Installing pyam-iamc...")
     # reticulate >= 1.40 with uv uses ephemeral environments: py_require() is
     # the correct installer. Older reticulate uses py_install(pip=TRUE).
-    has_py_require <- exists("py_require", envir = asNamespace("reticulate"),
-                             mode = "function", inherits = FALSE)
     tryCatch(
       if (has_py_require) reticulate::py_require("pyam-iamc")
       else reticulate::py_install("pyam-iamc", pip = TRUE),
@@ -46,6 +47,20 @@
              "Try restarting R and calling the function again.", call. = FALSE)
     )
     message("pyam loaded successfully.")
+  }
+
+  # Also ensure ixmp4 is available (needed for new-format / blue-icon IIASA databases).
+  # Silent install: ixmp4 is optional — if it cannot be installed the old pyam
+  # Connection API is used as fallback.
+  ixmp4_ok <- tryCatch({
+    reticulate::import("ixmp4", convert = FALSE)
+    TRUE
+  }, error = function(e) FALSE)
+  if (!ixmp4_ok) {
+    tryCatch({
+      if (has_py_require) reticulate::py_require("ixmp4")
+      else reticulate::py_install("ixmp4", pip = TRUE)
+    }, error = function(e) NULL)
   }
 
   pyam
@@ -255,6 +270,8 @@ iiasa_login <- function(username, password=NULL) {
   if (is.null(password)) {
     password <- readline(prompt=paste0("IIASA password for '", username, "': "))
   }
+  # Ensure reticulate uses the same Python environment as run_iiasadb() (installs ixmp4 if needed)
+  tryCatch(.ensure_pyam(), error = function(e) NULL)
   # Use platformdirs to find the correct platform-specific ixmp4 config path.
   # On Windows this is %LOCALAPPDATA%\ixmp4\ixmp4\, on Linux ~/.local/share/ixmp4/.
   tryCatch({
@@ -275,10 +292,11 @@ iiasa_login <- function(username, password=NULL) {
     message("You can now call run_iiasadb() without any credentials argument.")
     return(invisible(NULL))
   }, error = function(e) {
+    py_exe <- tryCatch(reticulate::py_config()$python, error = function(e2) "python")
     message("Automatic login failed: ", conditionMessage(e), "\n",
             "Please run once in a terminal:\n",
             "  ixmp4 login ", username, "\n",
-            "Or:  python -m ixmp4 login ", username, "\n",
+            "Or:  \"", py_exe, "\" -m ixmp4 login ", username, "\n",
             "After that, witchplot will work without any credentials argument.")
   })
   invisible(NULL)
